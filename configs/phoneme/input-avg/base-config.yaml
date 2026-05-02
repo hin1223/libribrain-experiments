@@ -2,7 +2,7 @@ data:
   datasets:
     train:
       - libribrain_phoneme:
-          data_path: '<DATA_PATH>'
+          data_path: '/Users/hin/Desktop/Python/libribrain/data'
           preprocessing_str: 'bads+headpos+sss+notch+bp+ds'
           label_type: 'phoneme'
           standardize: true
@@ -13,7 +13,7 @@ data:
           
     val:
       - libribrain_phoneme:
-          data_path: '<DATA_PATH>'
+          data_path: '/Users/hin/Desktop/Python/libribrain/data'
           label_type: 'phoneme'
           standardize: true
           tmin: 0.0
@@ -22,7 +22,7 @@ data:
           preload_files: false
     test:
       - libribrain_phoneme:
-          data_path: '<DATA_PATH>'
+          data_path: '/Users/hin/Desktop/Python/libribrain/data'
           label_type: 'phoneme'
           standardize: true
           tmin: 0.0
@@ -31,10 +31,10 @@ data:
           preload_files: false
   dataloader: 
     batch_size: 256
-    num_workers: 4
+    num_workers: 0
   general:
     inMemory: False
-    grouped_samples: 5
+    grouped_samples: 100
 
 
 model:
@@ -105,7 +105,7 @@ trainer:
 
 general:
   wandb: True
-  output_path: '<RESULTS_PATH>/final-input-avg'
-  checkpoint_path: '<CHECKPOINTS_PATH>/final-input-avg'
+  output_path: '/Users/hin/Desktop/Python/libribrain/results/final-input-avg'
+  checkpoint_path: '/Users/hin/Desktop/Python/libribrain/checkpoints/final-input-avg'
   seed: 42
   best_model_metric: 'val_loss'

@@ -31,7 +31,7 @@ data:
           preload_files: false
   dataloader: 
     batch_size: 256
-    num_workers: 4
+    num_workers: 0
   general:
     inMemory: False
     train_fraction: 0.1

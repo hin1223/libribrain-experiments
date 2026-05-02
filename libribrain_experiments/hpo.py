@@ -154,9 +154,15 @@ def main(args):
     print("LOGGED LAST RESULTS in ", time.time() - start_time, " seconds")"""
     del module
 
-    best_module = best_module.to(find_usable_cuda_devices()[0])
+    if torch.cuda.is_available():
+        device = find_usable_cuda_devices()[0]
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+    best_module = best_module.to(device)
     result, y, preds, logits = run_validation(
-        val_loader, best_module, labels, avg_evals=[], samples_per_class=samples_per_class)
+        val_loader, best_module, labels, samples_per_class=samples_per_class)
     start_time = time.time()
     print("VALIDATED MODEL in ", time.time() - start_time, " seconds")
     log_results(result, y, preds, logits,
