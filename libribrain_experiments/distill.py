@@ -13,8 +13,10 @@ from libribrain_experiments.utils import (
     get_dataset_partition_from_config, adapt_config_to_data,
     run_validation, log_results, get_label_counts
 )
-from libribrain_experiments.paired_dataset import PairedGroupedDataset
+from libribrain_experiments.paired_dataset import PairedGroupedDataset, StudentOnlyDataset
 from libribrain_experiments.models.configurable_modules.distillation_module import DistillationModule
+from libribrain_experiments.models.configurable_modules.classification_module import ClassificationModule
+from libribrain_experiments.utils import run_training
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -111,13 +113,7 @@ def main(args):
 
     lightning.seed_everything(config["general"]["seed"])
 
-    train_dataset, val_dataset, test_dataset, labels = get_paired_datasets_from_config(config["data"])
-    print("TRAIN SIZE:", len(train_dataset), "  VAL SIZE:", len(val_dataset))
-
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, shuffle=True, **config["data"]["dataloader"])
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset, **config["data"]["dataloader"])
+    paired_train, paired_val, paired_test, labels = get_paired_datasets_from_config(config["data"])
 
     # set n_groups="auto" → n_student in the model config
     for layer in config["model"]:
@@ -128,7 +124,27 @@ def main(args):
 
     config["_n_classes"] = len(labels)
 
-    trainer, best_module, module = run_distillation(train_loader, val_loader, config)
+    if args.baseline_only:
+        train_dataset = StudentOnlyDataset(paired_train)
+        val_dataset = StudentOnlyDataset(paired_val)
+        print("BASELINE MODE — TRAIN SIZE:", len(train_dataset), "  VAL SIZE:", len(val_dataset))
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, shuffle=True, **config["data"]["dataloader"])
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, **config["data"]["dataloader"])
+        adapt_config_to_data(config, train_loader, labels)
+        _, best_module, module = run_training(
+            train_loader, val_loader, config, len(labels))
+    else:
+        train_dataset = paired_train
+        val_dataset = paired_val
+        print("DISTILLATION MODE — TRAIN SIZE:", len(train_dataset), "  VAL SIZE:", len(val_dataset))
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, shuffle=True, **config["data"]["dataloader"])
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, **config["data"]["dataloader"])
+        _, best_module, module = run_distillation(train_loader, val_loader, config)
+
     del module
 
     if torch.cuda.is_available():
@@ -141,16 +157,19 @@ def main(args):
 
     samples_per_class = get_label_counts(train_loader, len(labels))
 
-    # validate on student inputs only
     def student_loader(loader):
-        for student_x, teacher_x, y in loader:
-            yield [student_x, y]
+        if args.baseline_only:
+            yield from loader
+        else:
+            for student_x, _, y in loader:
+                yield [student_x, y]
 
     result, y, preds, logits = run_validation(
         student_loader(val_loader), best_module, labels, samples_per_class=samples_per_class)
     log_results(result, y, preds, logits, config["general"]["output_path"], "val-best-" + run_name)
 
-    if test_dataset is not None:
+    if paired_test is not None:
+        test_dataset = StudentOnlyDataset(paired_test) if args.baseline_only else paired_test
         test_loader = torch.utils.data.DataLoader(
             test_dataset, **config["data"]["dataloader"])
         result, y, preds, logits = run_validation(
@@ -165,5 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--run-index", type=int)
     parser.add_argument("--run-name", type=str)
     parser.add_argument("--project-name", type=str, default="libribrain-experiments")
+    parser.add_argument("--baseline-only", action="store_true",
+                        help="Train baseline (CE only) on the same data as the distillation student")
     args = parser.parse_args()
     main(args)

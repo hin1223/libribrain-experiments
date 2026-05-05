@@ -3,6 +3,20 @@ from torch.utils.data import Dataset
 from pnpl.datasets.grouped_dataset import GroupedDataset
 
 
+class StudentOnlyDataset(Dataset):
+    """Wraps PairedGroupedDataset and returns (student_x, label) for baseline training."""
+
+    def __init__(self, paired_dataset):
+        self.paired = paired_dataset
+
+    def __len__(self):
+        return len(self.paired)
+
+    def __getitem__(self, idx):
+        student_x, _, label = self.paired[idx]
+        return [student_x, label]
+
+
 class PairedGroupedDataset(Dataset):
     """Returns (student_x, teacher_x, label) aligned pairs.
 
