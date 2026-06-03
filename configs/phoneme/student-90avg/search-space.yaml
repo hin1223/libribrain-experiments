@@ -1,0 +1,3 @@
+'("general", "seed")' : [1, 2]
+'("distillation", "alpha")' : [0.5]
+'("distillation", "temperature")' : [2.0]

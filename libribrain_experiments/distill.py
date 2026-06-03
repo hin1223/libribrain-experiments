@@ -64,17 +64,23 @@ def run_distillation(train_loader, val_loader, config):
     if config["general"]["wandb"]:
         logger = WandbLogger()
 
-    os.makedirs(config["general"]["checkpoint_path"], exist_ok=True)
+    run_ckpt_dir = os.path.join(config["general"]["checkpoint_path"], config["general"]["run_name"])
+    os.makedirs(run_ckpt_dir, exist_ok=True)
     best_metric = config["general"].get("best_model_metrics", "val_loss")
     mode = "min" if best_metric == "val_loss" else "max"
     checkpoint_cb = ModelCheckpoint(
-        dirpath=config["general"]["checkpoint_path"],
+        dirpath=run_ckpt_dir,
         monitor=best_metric,
         mode=mode,
         save_top_k=1,
         save_last=True,
         filename="best-" + best_metric + "-" + config["general"]["run_name"] + "-{epoch:02d}-{val_f1_macro:.4f}",
     )
+
+    last_ckpt = os.path.join(run_ckpt_dir, "last.ckpt")
+    resume_ckpt = last_ckpt if os.path.exists(last_ckpt) else None
+    if resume_ckpt:
+        print(f"Resuming distillation from checkpoint: {resume_ckpt}")
 
     trainer = Trainer(
         logger=logger,
@@ -83,7 +89,7 @@ def run_distillation(train_loader, val_loader, config):
         callbacks=[checkpoint_cb],
         **config["trainer"],
     )
-    trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader, ckpt_path=resume_ckpt)
 
     best_module = DistillationModule.load_from_checkpoint(checkpoint_cb.best_model_path)
     return trainer, best_module, module
@@ -100,13 +106,25 @@ def main(args):
     config = update_config_for_single_run(config, run_configs[args.run_index])
     print("Running config index:", args.run_index, run_configs[args.run_index])
 
+    if hasattr(args, 'alpha_override') and args.alpha_override is not None:
+        config["distillation"]["alpha"] = args.alpha_override
+
     run_name = (args.run_name or "distill") + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
+
+    if wandb.run is not None:
+        wandb.finish()
 
     if config["general"]["wandb"]:
         if args.project_name is None:
             raise ValueError("Please provide --project-name for wandb logging")
         wandb.init(project=args.project_name, name=run_name)
+        wandb.config.update({
+            "seed": config["general"]["seed"],
+            "lr": config["optimizer"]["config"]["lr"],
+            "alpha": config["distillation"]["alpha"],
+            "temperature": config["distillation"]["temperature"],
+        }, allow_val_change=True)
         wandb.define_metric("val_loss", summary="min")
         wandb.define_metric("val_f1_macro", summary="max")
         wandb.define_metric("val_bal_acc", summary="max")
@@ -133,8 +151,15 @@ def main(args):
         val_loader = torch.utils.data.DataLoader(
             val_dataset, **config["data"]["dataloader"])
         adapt_config_to_data(config, train_loader, labels)
+        run_ckpt_dir = os.path.join(config["general"]["checkpoint_path"], config["general"]["run_name"])
+        os.makedirs(run_ckpt_dir, exist_ok=True)
+        config["general"]["checkpoint_path"] = run_ckpt_dir
+        last_ckpt = os.path.join(run_ckpt_dir, "last.ckpt")
+        resume_ckpt = last_ckpt if os.path.exists(last_ckpt) else None
+        if resume_ckpt:
+            print(f"Resuming baseline from checkpoint: {resume_ckpt}")
         _, best_module, module = run_training(
-            train_loader, val_loader, config, len(labels))
+            train_loader, val_loader, config, len(labels), resume_ckpt=resume_ckpt)
     else:
         train_dataset = paired_train
         val_dataset = paired_val
@@ -155,14 +180,14 @@ def main(args):
         device = "cpu"
     best_module = best_module.to(device)
 
-    samples_per_class = get_label_counts(train_loader, len(labels))
-
     def student_loader(loader):
         if args.baseline_only:
             yield from loader
         else:
             for student_x, _, y in loader:
                 yield [student_x, y]
+
+    samples_per_class = get_label_counts(student_loader(train_loader), len(labels))
 
     result, y, preds, logits = run_validation(
         student_loader(val_loader), best_module, labels, samples_per_class=samples_per_class)
@@ -176,6 +201,9 @@ def main(args):
             student_loader(test_loader), best_module, labels, samples_per_class=samples_per_class)
         log_results(result, y, preds, logits, config["general"]["output_path"], "test-best-" + run_name)
 
+    if wandb.run is not None:
+        wandb.finish()
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -186,5 +214,6 @@ if __name__ == "__main__":
     parser.add_argument("--project-name", type=str, default="libribrain-experiments")
     parser.add_argument("--baseline-only", action="store_true",
                         help="Train baseline (CE only) on the same data as the distillation student")
+    parser.add_argument("--alpha-override", type=float, default=None)
     args = parser.parse_args()
     main(args)

@@ -26,7 +26,7 @@ class PairedGroupedDataset(Dataset):
     """
 
     def __init__(self, original_dataset, n_teacher=100, n_student=50):
-        assert n_teacher % n_student == 0, "n_teacher must be divisible by n_student"
+        assert n_student < n_teacher, "n_student must be less than n_teacher"
         self.n_teacher = n_teacher
         self.n_student = n_student
         self.teacher_grouped = GroupedDataset(

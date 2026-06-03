@@ -3,3 +3,5 @@ __pycache__/
 wandb/
 *.pyc
 .DS_Store
+<DATA_PATH>/
+<CHECKPOINTS_PATH>/
