@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH --exclude=htc-g[003-004,032-038,046-049]
+#SBATCH --exclude=htc-g003,htc-g004,htc-g032,htc-g033,htc-g034,htc-g035,htc-g037,htc-g038
 #SBATCH --output=/data/engs-pnpl-hl/logs/distill-%A.out
 #SBATCH --error=/data/engs-pnpl-hl/logs/distill-%A.err
 
