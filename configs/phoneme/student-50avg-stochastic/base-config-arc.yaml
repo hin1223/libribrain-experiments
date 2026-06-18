@@ -33,7 +33,7 @@ data:
 
   dataloader:
     batch_size: 256
-    num_workers: 4
+    num_workers: 0
   general:
     n_teacher: 100
     n_student: 50
