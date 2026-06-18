@@ -43,13 +43,14 @@ volume = modal.Volume.from_name("libribrain-vol", create_if_missing=True)
     retries=10,
     memory=65536,
 )
-def run_distill(run_index: int, baseline_only: bool = False, alpha_override: float = None):
+def run_distill(run_index: int, baseline_only: bool = False, alpha_override: float = None,
+                config_name: str = "student-50avg"):
     import sys, os, yaml
     sys.path.insert(0, "/app")
     os.chdir("/app")
 
     # Load and patch config in memory — no file writes, safe for parallel runs
-    with open("configs/phoneme/student-50avg/base-config.yaml") as f:
+    with open(f"configs/phoneme/{config_name}/base-config.yaml") as f:
         config = yaml.safe_load(f)
 
     for split in ["train", "val", "test"]:
@@ -59,8 +60,8 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
                     ds_cfg["data_path"] = DATA_PATH
                     ds_cfg["preload_files"] = True
 
-    config["general"]["output_path"] = f"{RESULTS_PATH}/student-50avg"
-    config["general"]["checkpoint_path"] = f"{CHECKPOINTS_PATH}/student-50avg"
+    config["general"]["output_path"] = f"{RESULTS_PATH}/{config_name}"
+    config["general"]["checkpoint_path"] = f"{CHECKPOINTS_PATH}/{config_name}"
     config["distillation"]["teacher_checkpoint_path"] = "/vol/teacher-checkpoint.ckpt"
 
     if alpha_override is not None:
@@ -76,17 +77,18 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
     if baseline_only:
         run_name = f"baseline-50avg{alpha_tag}"
     else:
-        run_name = f"student-50avg{alpha_tag}"
+        run_name = f"{config_name}{alpha_tag}"
 
     from libribrain_experiments.distill import main
     args = Namespace(
         config=tmp_config_path,
-        search_space="configs/phoneme/student-50avg/search-space.yaml",
+        search_space=f"configs/phoneme/{config_name}/search-space.yaml",
         run_name=run_name,
         run_index=run_index,
         project_name=WANDB_PROJECT,
         baseline_only=baseline_only,
         alpha_override=alpha_override,
+        temperature_override=None,
     )
     main(args)
 
@@ -97,11 +99,14 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
     volumes={"/vol": volume},
     secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
 )
-def run_sequential(jobs: list):
+def run_sequential(jobs: list, config_name: str = "student-50avg"):
     for run_index, alpha in jobs:
-        run_distill.remote(run_index, alpha_override=alpha)
+        run_distill.remote(run_index, alpha_override=alpha, config_name=config_name)
 
 
 @app.local_entrypoint()
 def main():
-    run_sequential.spawn([(12, 0.7), (12, 0.8), (12, 0.9)])
+    run_sequential.spawn(
+        [(i, None) for i in range(5, 15)],
+        config_name="student-50avg-stochastic",
+    )

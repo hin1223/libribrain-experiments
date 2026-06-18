@@ -3,6 +3,7 @@ from torchmetrics import Accuracy, Precision, Recall
 from pytorch_lightning import LightningModule
 from torchmetrics import F1Score
 from .utils import modules_from_config, optimizer_from_config, loss_fn_from_config
+from libribrain_experiments.models.film import FiLM
 
 
 class ClassificationModule(LightningModule):
@@ -31,9 +32,12 @@ class ClassificationModule(LightningModule):
         self.binary_recall = Recall(task="binary")
         self.binary_f1 = F1Score(task="binary")
 
-    def forward(self, x):
+    def forward(self, x, c=None):
         for module in self.modules_list:
-            x = module(x)
+            if isinstance(module, FiLM):
+                x = module(x, c)
+            else:
+                x = module(x)
         return x
 
     def configure_optimizers(self):

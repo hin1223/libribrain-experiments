@@ -17,6 +17,32 @@ class StudentOnlyDataset(Dataset):
         return [student_x, label]
 
 
+class StochasticPairedGroupedDataset(Dataset):
+    """Returns (raw_student_trials, teacher_x, label) for stochastic averaging.
+
+    raw_student_trials has shape (n_teacher * C, T) — all available trials
+    unaveraged, so the training step can sample N and average at will.
+    teacher_x has shape (n_teacher * C, T) — same pool, used as-is by the teacher.
+    """
+
+    def __init__(self, original_dataset, n_teacher=100):
+        self.n_teacher = n_teacher
+        self.teacher_grouped = GroupedDataset(
+            original_dataset,
+            grouped_samples=n_teacher,
+            average_grouped_samples=False,
+            drop_remaining=True,
+        )
+        self.channels_per_sample = original_dataset[0][0].shape[0]
+
+    def __len__(self):
+        return len(self.teacher_grouped)
+
+    def __getitem__(self, idx):
+        teacher_x, label = self.teacher_grouped[idx]
+        return teacher_x, teacher_x, label  # raw_student_trials = teacher pool
+
+
 class PairedGroupedDataset(Dataset):
     """Returns (student_x, teacher_x, label) aligned pairs.
 

@@ -13,8 +13,9 @@ from libribrain_experiments.utils import (
     get_dataset_partition_from_config, adapt_config_to_data,
     run_validation, log_results, get_label_counts
 )
-from libribrain_experiments.paired_dataset import PairedGroupedDataset, StudentOnlyDataset
+from libribrain_experiments.paired_dataset import PairedGroupedDataset, StudentOnlyDataset, StochasticPairedGroupedDataset
 from libribrain_experiments.models.configurable_modules.distillation_module import DistillationModule
+from libribrain_experiments.models.configurable_modules.stochastic_distillation_module import StochasticDistillationModule
 from libribrain_experiments.models.configurable_modules.classification_module import ClassificationModule
 from libribrain_experiments.utils import run_training
 from pytorch_lightning import Trainer
@@ -27,38 +28,67 @@ def get_paired_datasets_from_config(data_config):
     datasets_config = data_config["datasets"]
     n_teacher = data_config["general"]["n_teacher"]
     n_student = data_config["general"]["n_student"]
+    stochastic = "n_min" in data_config["general"]
 
     train_raw = get_dataset_partition_from_config(datasets_config["train"])
     train_channel_means = train_raw.datasets[0].channel_means
     train_channel_stds = train_raw.datasets[0].channel_stds
     train_labels = train_raw.datasets[0].labels_sorted
 
-    train_dataset = PairedGroupedDataset(train_raw, n_teacher=n_teacher, n_student=n_student)
+    if stochastic:
+        train_dataset = StochasticPairedGroupedDataset(train_raw, n_teacher=n_teacher)
+    else:
+        train_dataset = PairedGroupedDataset(train_raw, n_teacher=n_teacher, n_student=n_student)
 
     val_raw = get_dataset_partition_from_config(
         datasets_config["val"], train_channel_means, train_channel_stds)
-    val_dataset = PairedGroupedDataset(val_raw, n_teacher=n_teacher, n_student=n_student)
+    if stochastic:
+        val_dataset = StochasticPairedGroupedDataset(val_raw, n_teacher=n_teacher)
+    else:
+        val_dataset = PairedGroupedDataset(val_raw, n_teacher=n_teacher, n_student=n_student)
 
     test_dataset = None
     if "test" in datasets_config:
         test_raw = get_dataset_partition_from_config(
             datasets_config["test"], train_channel_means, train_channel_stds)
-        test_dataset = PairedGroupedDataset(test_raw, n_teacher=n_teacher, n_student=n_student)
+        if stochastic:
+            test_dataset = StochasticPairedGroupedDataset(test_raw, n_teacher=n_teacher)
+        else:
+            test_dataset = PairedGroupedDataset(test_raw, n_teacher=n_teacher, n_student=n_student)
 
     return train_dataset, val_dataset, test_dataset, train_labels
 
 
 def run_distillation(train_loader, val_loader, config):
     distill_config = config["distillation"]
-    module = DistillationModule(
-        model_config=config["model"],
-        n_classes=config["_n_classes"],
-        optimizer_config=config["optimizer"],
-        loss_config=config["loss"],
-        teacher_checkpoint_path=distill_config["teacher_checkpoint_path"],
-        temperature=distill_config.get("temperature", 2.0),
-        alpha=distill_config.get("alpha", 0.5),
-    )
+    data_general = config["data"]["general"]
+    stochastic = "n_min" in data_general
+
+    if stochastic:
+        channels_per_sample = train_loader.dataset[0][0].shape[0] // data_general["n_teacher"]
+        module = StochasticDistillationModule(
+            model_config=config["model"],
+            n_classes=config["_n_classes"],
+            optimizer_config=config["optimizer"],
+            loss_config=config["loss"],
+            teacher_checkpoint_path=distill_config["teacher_checkpoint_path"],
+            temperature=distill_config.get("temperature", 2.0),
+            alpha=distill_config.get("alpha", 0.5),
+            n_min=data_general["n_min"],
+            n_max=data_general["n_max"],
+            n_eval=data_general.get("n_student", data_general["n_min"]),
+            channels_per_sample=channels_per_sample,
+        )
+    else:
+        module = DistillationModule(
+            model_config=config["model"],
+            n_classes=config["_n_classes"],
+            optimizer_config=config["optimizer"],
+            loss_config=config["loss"],
+            teacher_checkpoint_path=distill_config["teacher_checkpoint_path"],
+            temperature=distill_config.get("temperature", 2.0),
+            alpha=distill_config.get("alpha", 0.5),
+        )
 
     logger = False
     if config["general"]["wandb"]:
@@ -108,6 +138,9 @@ def main(args):
 
     if hasattr(args, 'alpha_override') and args.alpha_override is not None:
         config["distillation"]["alpha"] = args.alpha_override
+
+    if hasattr(args, 'temperature_override') and args.temperature_override is not None:
+        config["distillation"]["temperature"] = args.temperature_override
 
     run_name = (args.run_name or "distill") + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
@@ -215,5 +248,6 @@ if __name__ == "__main__":
     parser.add_argument("--baseline-only", action="store_true",
                         help="Train baseline (CE only) on the same data as the distillation student")
     parser.add_argument("--alpha-override", type=float, default=None)
+    parser.add_argument("--temperature-override", type=float, default=None)
     args = parser.parse_args()
     main(args)
