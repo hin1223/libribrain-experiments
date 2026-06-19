@@ -8,6 +8,8 @@ import torch
 import time
 import os
 
+torch.set_float32_matmul_precision('medium')
+
 from libribrain_experiments.hpo import runs_configs_from_search_space, load_search_space, update_config_for_single_run
 from libribrain_experiments.utils import (
     get_dataset_partition_from_config, adapt_config_to_data,
@@ -115,6 +117,7 @@ def run_distillation(train_loader, val_loader, config):
     trainer = Trainer(
         logger=logger,
         accelerator="auto",
+        precision="bf16-mixed",
         log_every_n_steps=1,
         callbacks=[checkpoint_cb],
         **config["trainer"],
