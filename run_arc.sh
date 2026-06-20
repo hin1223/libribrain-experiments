@@ -19,6 +19,6 @@ python -m libribrain_experiments.distill \
     --config configs/phoneme/student-50avg-stochastic/base-config-arc.yaml \
     --search-space configs/phoneme/student-50avg-stochastic/search-space.yaml \
     --run-index $RUN_INDEX \
-    --run-name student-50avg-stochastic-a05 \
-    --alpha-override 0.5 \
+    --run-name student-50avg-stochastic-a${ALPHA_TAG} \
+    --alpha-override $ALPHA \
     --project-name libribrain-experiments
