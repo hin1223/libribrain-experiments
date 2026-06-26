@@ -18,6 +18,7 @@ from libribrain_experiments.utils import (
 from libribrain_experiments.paired_dataset import PairedGroupedDataset, StudentOnlyDataset, StochasticPairedGroupedDataset
 from libribrain_experiments.models.configurable_modules.distillation_module import DistillationModule
 from libribrain_experiments.models.configurable_modules.stochastic_distillation_module import StochasticDistillationModule
+from libribrain_experiments.models.configurable_modules.scheduled_distillation_module import ScheduledDistillationModule
 from libribrain_experiments.models.configurable_modules.classification_module import ClassificationModule
 from libribrain_experiments.utils import run_training
 from pytorch_lightning import Trainer
@@ -68,7 +69,9 @@ def run_distillation(train_loader, val_loader, config):
 
     if stochastic:
         channels_per_sample = train_loader.dataset[0][0].shape[0] // data_general["n_teacher"]
-        module = StochasticDistillationModule(
+        scheduled = data_general.get("schedule", False)
+        ModuleClass = ScheduledDistillationModule if scheduled else StochasticDistillationModule
+        module = ModuleClass(
             model_config=config["model"],
             n_classes=config["_n_classes"],
             optimizer_config=config["optimizer"],
