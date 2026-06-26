@@ -15,10 +15,19 @@ conda activate libribrain
 
 cd /data/engs-pnpl-hl/libribrain-experiments
 
-python -m libribrain_experiments.distill \
-    --config configs/phoneme/student-50avg-stochastic/base-config-arc.yaml \
-    --search-space configs/phoneme/student-50avg-stochastic/search-space.yaml \
+CONFIG_NAME=${CONFIG_NAME:-student-50avg-stochastic}
+RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-$CONFIG_NAME}
+
+CMD="python -m libribrain_experiments.distill \
+    --config configs/phoneme/${CONFIG_NAME}/base-config-arc.yaml \
+    --search-space configs/phoneme/${CONFIG_NAME}/search-space.yaml \
     --run-index $RUN_INDEX \
-    --run-name student-50avg-stochastic-a${ALPHA_TAG} \
+    --run-name ${RUN_NAME_PREFIX}-a${ALPHA_TAG} \
     --alpha-override $ALPHA \
-    --project-name libribrain-experiments
+    --project-name libribrain-experiments"
+
+if [ -n "$TEMP" ]; then
+    CMD="$CMD --temperature-override $TEMP"
+fi
+
+eval $CMD
