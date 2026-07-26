@@ -85,6 +85,7 @@ def run_distillation(train_loader, val_loader, config):
             channels_per_sample=channels_per_sample,
         )
     else:
+        ModuleClass = DistillationModule
         module = DistillationModule(
             model_config=config["model"],
             n_classes=config["_n_classes"],
@@ -127,7 +128,7 @@ def run_distillation(train_loader, val_loader, config):
     )
     trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader, ckpt_path=resume_ckpt)
 
-    best_module = DistillationModule.load_from_checkpoint(checkpoint_cb.best_model_path)
+    best_module = ModuleClass.load_from_checkpoint(checkpoint_cb.best_model_path)
     return trainer, best_module, module
 
 
@@ -224,6 +225,8 @@ def main(args):
             yield from loader
         else:
             for student_x, _, y in loader:
+                if hasattr(best_module, "_average_student"):
+                    student_x = best_module._average_student(student_x, best_module.n_eval)
                 yield [student_x, y]
 
     samples_per_class = get_label_counts(student_loader(train_loader), len(labels))

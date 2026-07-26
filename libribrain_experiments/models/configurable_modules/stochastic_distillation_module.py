@@ -21,6 +21,7 @@ class StochasticDistillationModule(DistillationModule):
             model_config, n_classes, optimizer_config, loss_config,
             teacher_checkpoint_path, temperature=temperature, alpha=alpha,
         )
+        self.save_hyperparameters()
         self.n_min = n_min
         self.n_max = n_max
         self.n_eval = n_eval
