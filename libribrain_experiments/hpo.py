@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from datetime import datetime
 import itertools
 from libribrain_experiments.utils import run_training, get_datasets_from_config, adapt_config_to_data, run_validation, log_results
 import yaml
@@ -94,7 +95,8 @@ def main(args):
         if (args.project_name is None):
             raise ValueError(
                 "Please provide a project name for wandb logging")
-        wandb.init(project=args.project_name, name=args.run_name)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        wandb.init(project=args.project_name, name=f"{args.run_name} ({timestamp})")
         wandb.define_metric("val_loss", summary="min")
         wandb.define_metric("val_f1_macro", summary="max")
         wandb.define_metric("val_bal_acc", summary="max")

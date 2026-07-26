@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from datetime import datetime
 import itertools
 import yaml
 import wandb
@@ -158,7 +159,8 @@ def main(args):
     if config["general"]["wandb"]:
         if args.project_name is None:
             raise ValueError("Please provide --project-name for wandb logging")
-        wandb.init(project=args.project_name, name=run_name)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        wandb.init(project=args.project_name, name=f"{run_name} ({timestamp})")
         wandb.config.update({
             "seed": config["general"]["seed"],
             "lr": config["optimizer"]["config"]["lr"],
