@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from datetime import datetime
 import itertools
+import os
 from libribrain_experiments.utils import run_training, get_datasets_from_config, adapt_config_to_data, run_validation, log_results
 import yaml
 import wandb
@@ -138,8 +139,17 @@ def main(args):
     else:
         best_model_metric_mode = "max"
 
+    run_ckpt_dir = os.path.join(config["general"]["checkpoint_path"], config["general"]["run_name"])
+    os.makedirs(run_ckpt_dir, exist_ok=True)
+    config["general"]["checkpoint_path"] = run_ckpt_dir
+    last_ckpt = os.path.join(run_ckpt_dir, "last.ckpt")
+    resume_ckpt = last_ckpt if os.path.exists(last_ckpt) else None
+    if resume_ckpt:
+        print(f"Resuming from checkpoint: {resume_ckpt}")
+
     trainer, best_module, module = run_training(
-        train_loader, val_loader, config, len(labels), best_model_metric=best_model_metric, best_model_metric_mode=best_model_metric_mode)
+        train_loader, val_loader, config, len(labels), best_model_metric=best_model_metric,
+        best_model_metric_mode=best_model_metric_mode, resume_ckpt=resume_ckpt)
     start_time = time.time()
     print("TRAINED MODEL in ", time.time() - start_time, " seconds")
 
