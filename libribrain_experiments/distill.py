@@ -231,10 +231,35 @@ def main(args):
                     student_x = best_module._average_student(student_x, best_module.n_eval)
                 yield [student_x, y]
 
+    class _ConditionedEvalModule:
+        """Wraps a module needing FiLM conditioning c=1/sqrt(n_eval) so it exposes
+        the plain module(x) interface run_validation() expects."""
+
+        def __init__(self, module, c):
+            self.module = module
+            self.c = c
+
+        def eval(self):
+            self.module.eval()
+
+        @property
+        def device(self):
+            return self.module.device
+
+        def __call__(self, x):
+            c = self.c.expand(x.size(0), -1)
+            return self.module(x, c)
+
+    if hasattr(best_module, "_conditioning"):
+        eval_module = _ConditionedEvalModule(
+            best_module, best_module._conditioning(best_module.n_eval))
+    else:
+        eval_module = best_module
+
     samples_per_class = get_label_counts(student_loader(train_loader), len(labels))
 
     result, y, preds, logits = run_validation(
-        student_loader(val_loader), best_module, labels, samples_per_class=samples_per_class)
+        student_loader(val_loader), eval_module, labels, samples_per_class=samples_per_class)
     log_results(result, y, preds, logits, config["general"]["output_path"], "val-best-" + run_name)
 
     if paired_test is not None:
@@ -242,7 +267,7 @@ def main(args):
         test_loader = torch.utils.data.DataLoader(
             test_dataset, **config["data"]["dataloader"])
         result, y, preds, logits = run_validation(
-            student_loader(test_loader), best_module, labels, samples_per_class=samples_per_class)
+            student_loader(test_loader), eval_module, labels, samples_per_class=samples_per_class)
         log_results(result, y, preds, logits, config["general"]["output_path"], "test-best-" + run_name)
 
     if wandb.run is not None:
