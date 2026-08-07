@@ -160,7 +160,8 @@ def main(args):
         if args.project_name is None:
             raise ValueError("Please provide --project-name for wandb logging")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        wandb.init(project=args.project_name, name=f"{run_name} ({timestamp})")
+        wandb.init(project=args.project_name,
+                  name=f"{run_name}-seed{config['general']['seed']} ({timestamp})")
         wandb.config.update({
             "seed": config["general"]["seed"],
             "lr": config["optimizer"]["config"]["lr"],

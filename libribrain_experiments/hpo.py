@@ -97,7 +97,8 @@ def main(args):
             raise ValueError(
                 "Please provide a project name for wandb logging")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        wandb.init(project=args.project_name, name=f"{args.run_name} ({timestamp})")
+        wandb.init(project=args.project_name,
+                  name=f"{args.run_name}-seed{config['general']['seed']} ({timestamp})")
         wandb.define_metric("val_loss", summary="min")
         wandb.define_metric("val_f1_macro", summary="max")
         wandb.define_metric("val_bal_acc", summary="max")
