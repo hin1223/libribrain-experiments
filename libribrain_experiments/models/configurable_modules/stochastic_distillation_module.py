@@ -17,7 +17,8 @@ class StochasticDistillationModule(DistillationModule):
     def __init__(self, model_config, n_classes, optimizer_config, loss_config,
                  teacher_checkpoint_path, temperature=2.0, alpha=0.5,
                  n_min=50, n_max=100, n_eval=50, channels_per_sample=306,
-                 snr_weighted_kd=False):
+                 snr_weighted_kd=False, deterministic_cycling=False,
+                 teacher_confidence_gated_kd=False):
         super().__init__(
             model_config, n_classes, optimizer_config, loss_config,
             teacher_checkpoint_path, temperature=temperature, alpha=alpha,
@@ -28,6 +29,8 @@ class StochasticDistillationModule(DistillationModule):
         self.n_eval = n_eval
         self.channels_per_sample = channels_per_sample
         self.snr_weighted_kd = snr_weighted_kd
+        self.deterministic_cycling = deterministic_cycling
+        self.teacher_confidence_gated_kd = teacher_confidence_gated_kd
 
     def _conditioning(self, n: int) -> torch.Tensor:
         """c = 1/sqrt(N), shape (1, 1) — broadcast over batch in FiLM."""
@@ -50,10 +53,45 @@ class StochasticDistillationModule(DistillationModule):
         snr_weight = (n - self.n_min) / (self.n_max - self.n_min)
         return self.alpha * snr_weight
 
+    def _sample_n(self) -> int:
+        """Pick this step's averaging count.
+
+        Default: randomly, mode at n_min (sample_n's noise-std-uniform
+        distribution). If deterministic_cycling is enabled: a deterministic
+        sawtooth sweep through n_min..n_max indexed by global_step — same
+        range of SNR variation, but predictable/reproducible rather than
+        random, so the same training step always sees the same n. Tests
+        whether it's specifically the unpredictability of the student-
+        teacher mismatch (not just its average size) that hurts training.
+        """
+        if self.deterministic_cycling:
+            span = self.n_max - self.n_min
+            return self.n_min if span <= 0 else self.n_min + (self.global_step % (span + 1))
+        return int(sample_n(1, self.n_min, self.n_max)[0])
+
+    def _kd_loss(self, student_logits, teacher_logits):
+        """Per-example KD loss, optionally gated by the teacher's own
+        prediction confidence (max softmax prob) — trust the teacher's soft
+        labels less on examples it isn't confident about, rather than
+        weighting every example uniformly. Equivalent to the original
+        reduction='batchmean' formula when teacher_confidence_gated_kd is
+        off.
+        """
+        T = self.temperature
+        per_example_kd = F.kl_div(
+            F.log_softmax(student_logits / T, dim=1),
+            F.softmax(teacher_logits / T, dim=1),
+            reduction='none',
+        ).sum(dim=1) * (T ** 2)
+        if self.teacher_confidence_gated_kd:
+            confidence = F.softmax(teacher_logits, dim=1).max(dim=1).values
+            return (per_example_kd * confidence).mean()
+        return per_example_kd.mean()
+
     def training_step(self, batch, batch_idx):
         raw_student, teacher_x, y = batch[0], batch[1], batch[2]
 
-        n = int(sample_n(1, self.n_min, self.n_max)[0])
+        n = self._sample_n()
         student_x = self._average_student(raw_student, n)
         c = self._conditioning(n).expand(student_x.size(0), -1)
 
@@ -62,12 +100,7 @@ class StochasticDistillationModule(DistillationModule):
         student_logits = self(student_x, c)
 
         ce_loss = self.loss_fn(student_logits, y)
-        T = self.temperature
-        kd_loss = F.kl_div(
-            F.log_softmax(student_logits / T, dim=1),
-            F.softmax(teacher_logits / T, dim=1),
-            reduction='batchmean',
-        ) * (T ** 2)
+        kd_loss = self._kd_loss(student_logits, teacher_logits)
         effective_alpha = self._effective_alpha(n)
         loss = effective_alpha * kd_loss + (1 - effective_alpha) * ce_loss
 

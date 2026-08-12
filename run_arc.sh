@@ -34,4 +34,12 @@ if [ -n "$SNR_WEIGHTED_KD" ]; then
     CMD="$CMD --snr-weighted-kd"
 fi
 
+if [ -n "$DETERMINISTIC_CYCLING" ]; then
+    CMD="$CMD --deterministic-cycling"
+fi
+
+if [ -n "$TEACHER_CONFIDENCE_GATED_KD" ]; then
+    CMD="$CMD --teacher-confidence-gated-kd"
+fi
+
 eval $CMD

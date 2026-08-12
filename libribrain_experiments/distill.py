@@ -85,6 +85,8 @@ def run_distillation(train_loader, val_loader, config):
             n_eval=data_general.get("n_student", data_general["n_min"]),
             channels_per_sample=channels_per_sample,
             snr_weighted_kd=distill_config.get("snr_weighted_kd", False),
+            deterministic_cycling=distill_config.get("deterministic_cycling", False),
+            teacher_confidence_gated_kd=distill_config.get("teacher_confidence_gated_kd", False),
         )
     else:
         ModuleClass = DistillationModule
@@ -154,8 +156,20 @@ def main(args):
     if getattr(args, 'snr_weighted_kd', False):
         config["distillation"]["snr_weighted_kd"] = True
 
-    snr_tag = "-snr" if getattr(args, 'snr_weighted_kd', False) else ""
-    run_name = (args.run_name or "distill") + snr_tag + "-hpo-" + str(args.run_index)
+    if getattr(args, 'deterministic_cycling', False):
+        config["distillation"]["deterministic_cycling"] = True
+
+    if getattr(args, 'teacher_confidence_gated_kd', False):
+        config["distillation"]["teacher_confidence_gated_kd"] = True
+
+    tag = ""
+    if getattr(args, 'snr_weighted_kd', False):
+        tag += "-snr"
+    if getattr(args, 'deterministic_cycling', False):
+        tag += "-cyc"
+    if getattr(args, 'teacher_confidence_gated_kd', False):
+        tag += "-tcg"
+    run_name = (args.run_name or "distill") + tag + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
 
     if wandb.run is not None:
@@ -293,6 +307,12 @@ if __name__ == "__main__":
     parser.add_argument("--temperature-override", type=float, default=None)
     parser.add_argument("--snr-weighted-kd", action="store_true",
                         help="Scale alpha by how close the sampled n is to n_max, "
-                             "instead of a constant alpha (stochastic/scheduled only)")
+                             "instead of a constant alpha (stochastic only)")
+    parser.add_argument("--deterministic-cycling", action="store_true",
+                        help="Sweep n deterministically through n_min..n_max via "
+                             "global_step instead of random sampling (stochastic only)")
+    parser.add_argument("--teacher-confidence-gated-kd", action="store_true",
+                        help="Weight per-example KD loss by the teacher's own "
+                             "prediction confidence (stochastic only)")
     args = parser.parse_args()
     main(args)
