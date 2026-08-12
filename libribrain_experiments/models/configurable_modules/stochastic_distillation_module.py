@@ -16,7 +16,8 @@ class StochasticDistillationModule(DistillationModule):
 
     def __init__(self, model_config, n_classes, optimizer_config, loss_config,
                  teacher_checkpoint_path, temperature=2.0, alpha=0.5,
-                 n_min=50, n_max=100, n_eval=50, channels_per_sample=306):
+                 n_min=50, n_max=100, n_eval=50, channels_per_sample=306,
+                 snr_weighted_kd=False):
         super().__init__(
             model_config, n_classes, optimizer_config, loss_config,
             teacher_checkpoint_path, temperature=temperature, alpha=alpha,
@@ -26,6 +27,7 @@ class StochasticDistillationModule(DistillationModule):
         self.n_max = n_max
         self.n_eval = n_eval
         self.channels_per_sample = channels_per_sample
+        self.snr_weighted_kd = snr_weighted_kd
 
     def _conditioning(self, n: int) -> torch.Tensor:
         """c = 1/sqrt(N), shape (1, 1) — broadcast over batch in FiLM."""
@@ -34,6 +36,19 @@ class StochasticDistillationModule(DistillationModule):
     def _average_student(self, raw_trials, n):
         """Average n randomly selected trials from raw_trials."""
         return average_trials(raw_trials, n, self.channels_per_sample)
+
+    def _effective_alpha(self, n: int) -> float:
+        """Scale alpha by how close n is to n_max (the teacher's fixed view).
+
+        At n=n_min (noisiest, most mismatched with the teacher's constant
+        high-SNR target) this is pure CE; at n=n_max (student input matches
+        what the teacher saw) it gets the full nominal alpha weight. No-op
+        (returns self.alpha unchanged) unless snr_weighted_kd is enabled.
+        """
+        if not self.snr_weighted_kd:
+            return self.alpha
+        snr_weight = (n - self.n_min) / (self.n_max - self.n_min)
+        return self.alpha * snr_weight
 
     def training_step(self, batch, batch_idx):
         raw_student, teacher_x, y = batch[0], batch[1], batch[2]
@@ -53,12 +68,14 @@ class StochasticDistillationModule(DistillationModule):
             F.softmax(teacher_logits / T, dim=1),
             reduction='batchmean',
         ) * (T ** 2)
-        loss = self.alpha * kd_loss + (1 - self.alpha) * ce_loss
+        effective_alpha = self._effective_alpha(n)
+        loss = effective_alpha * kd_loss + (1 - effective_alpha) * ce_loss
 
         self.log('train_loss', loss)
         self.log('train_kd_loss', kd_loss)
         self.log('train_ce_loss', ce_loss)
         self.log('train_n', float(n))
+        self.log('train_effective_alpha', effective_alpha)
         self.log('train_f1_macro', self.f1_macro(student_logits, y))
         self.log('train_bal_acc', self.balanced_accuracy(student_logits, y))
         return loss

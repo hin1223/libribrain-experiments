@@ -84,6 +84,7 @@ def run_distillation(train_loader, val_loader, config):
             n_max=data_general["n_max"],
             n_eval=data_general.get("n_student", data_general["n_min"]),
             channels_per_sample=channels_per_sample,
+            snr_weighted_kd=distill_config.get("snr_weighted_kd", False),
         )
     else:
         ModuleClass = DistillationModule
@@ -150,7 +151,11 @@ def main(args):
     if hasattr(args, 'temperature_override') and args.temperature_override is not None:
         config["distillation"]["temperature"] = args.temperature_override
 
-    run_name = (args.run_name or "distill") + "-hpo-" + str(args.run_index)
+    if getattr(args, 'snr_weighted_kd', False):
+        config["distillation"]["snr_weighted_kd"] = True
+
+    snr_tag = "-snr" if getattr(args, 'snr_weighted_kd', False) else ""
+    run_name = (args.run_name or "distill") + snr_tag + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
 
     if wandb.run is not None:
@@ -286,5 +291,8 @@ if __name__ == "__main__":
                         help="Train baseline (CE only) on the same data as the distillation student")
     parser.add_argument("--alpha-override", type=float, default=None)
     parser.add_argument("--temperature-override", type=float, default=None)
+    parser.add_argument("--snr-weighted-kd", action="store_true",
+                        help="Scale alpha by how close the sampled n is to n_max, "
+                             "instead of a constant alpha (stochastic/scheduled only)")
     args = parser.parse_args()
     main(args)

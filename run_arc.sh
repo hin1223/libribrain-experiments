@@ -30,4 +30,8 @@ if [ -n "$TEMP" ]; then
     CMD="$CMD --temperature-override $TEMP"
 fi
 
+if [ -n "$SNR_WEIGHTED_KD" ]; then
+    CMD="$CMD --snr-weighted-kd"
+fi
+
 eval $CMD
