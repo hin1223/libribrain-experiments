@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from .distillation_module import DistillationModule
 from libribrain_experiments.stochastic_averaging import (
-    sample_n, sample_n_inverted, sample_n_uniform, average_trials,
+    sample_n, sample_n_inverted, sample_n_uniform, sample_n_softmax, average_trials,
 )
 
 
@@ -20,7 +20,8 @@ class StochasticDistillationModule(DistillationModule):
                  teacher_checkpoint_path, temperature=2.0, alpha=0.5,
                  n_min=50, n_max=100, n_eval=50, channels_per_sample=306,
                  snr_weighted_kd=False, deterministic_cycling=False,
-                 teacher_confidence_gated_kd=False, sampling_mode="default"):
+                 teacher_confidence_gated_kd=False, sampling_mode="default",
+                 lam=0.0):
         super().__init__(
             model_config, n_classes, optimizer_config, loss_config,
             teacher_checkpoint_path, temperature=temperature, alpha=alpha,
@@ -34,6 +35,7 @@ class StochasticDistillationModule(DistillationModule):
         self.deterministic_cycling = deterministic_cycling
         self.teacher_confidence_gated_kd = teacher_confidence_gated_kd
         self.sampling_mode = sampling_mode
+        self.lam = lam
 
     def _conditioning(self, n: int) -> torch.Tensor:
         """c = 1/sqrt(N), shape (1, 1) — broadcast over batch in FiLM."""
@@ -69,6 +71,9 @@ class StochasticDistillationModule(DistillationModule):
           - "inverted": mirror of default — mode at n_max (tending toward
             the teacher's fixed high-SNR view) instead of n_min.
           - "uniform": flat over [n_min, n_max], no mode bias either way.
+          - "softmax": Boltzmann distribution p(n) ~ exp(lam*(n-mid)/half_range),
+            continuously tunable via lam (< 0 biased toward n_min, 0 uniform,
+            > 0 biased toward n_max; larger |lam| = stronger bias).
         """
         if self.deterministic_cycling:
             span = self.n_max - self.n_min
@@ -77,6 +82,8 @@ class StochasticDistillationModule(DistillationModule):
             return int(sample_n_inverted(1, self.n_min, self.n_max)[0])
         if self.sampling_mode == "uniform":
             return int(sample_n_uniform(1, self.n_min, self.n_max)[0])
+        if self.sampling_mode == "softmax":
+            return int(sample_n_softmax(1, self.n_min, self.n_max, self.lam)[0])
         return int(sample_n(1, self.n_min, self.n_max)[0])
 
     def _kd_loss(self, student_logits, teacher_logits):

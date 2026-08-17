@@ -33,6 +33,30 @@ def sample_n_uniform(batch_size, n_min=50, n_max=100):
     return np.clip(n, n_min, n_max)
 
 
+def sample_n_softmax(batch_size, n_min=50, n_max=100, lam=0.0):
+    """Sample averaging counts from a Boltzmann/softmax distribution over
+    n in [n_min, n_max]:
+
+        p_lam(n) ~ exp(lam * (n - mid) / half_range)
+
+    where mid = (n_min+n_max)/2 and half_range = (n_max-n_min)/2 — for
+    n_min=50, n_max=100 this is exactly exp(lam * (n-75)/25).
+
+      lam < 0: biased toward n_min (noisier inputs)
+      lam = 0: uniform — every value in [n_min, n_max] equally likely
+      lam > 0: biased toward n_max (cleaner inputs)
+
+    Larger |lam| gives a stronger bias.
+    """
+    ns = np.arange(n_min, n_max + 1)
+    mid = (n_min + n_max) / 2
+    half_range = (n_max - n_min) / 2
+    logits = lam * (ns - mid) / half_range
+    probs = np.exp(logits - logits.max())  # numerically stable softmax
+    probs = probs / probs.sum()
+    return np.random.choice(ns, size=batch_size, p=probs)
+
+
 def average_trials(raw_trials, n_samples, channels_per_sample):
     """Randomly select n_samples trials from raw_trials and average them.
 

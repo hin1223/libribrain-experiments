@@ -46,4 +46,8 @@ if [ -n "$SAMPLING_MODE" ]; then
     CMD="$CMD --sampling-mode $SAMPLING_MODE"
 fi
 
+if [ -n "$LAM" ]; then
+    CMD="$CMD --lam $LAM"
+fi
+
 eval $CMD

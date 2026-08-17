@@ -88,6 +88,7 @@ def run_distillation(train_loader, val_loader, config):
             deterministic_cycling=distill_config.get("deterministic_cycling", False),
             teacher_confidence_gated_kd=distill_config.get("teacher_confidence_gated_kd", False),
             sampling_mode=distill_config.get("sampling_mode", "default"),
+            lam=distill_config.get("lam", 0.0),
         )
     else:
         ModuleClass = DistillationModule
@@ -164,6 +165,10 @@ def main(args):
         config["distillation"]["teacher_confidence_gated_kd"] = True
 
     sampling_mode = getattr(args, 'sampling_mode', 'default')
+    lam = getattr(args, 'lam', None)
+    if lam is not None:
+        sampling_mode = 'softmax'
+        config["distillation"]["lam"] = lam
     if sampling_mode != 'default':
         config["distillation"]["sampling_mode"] = sampling_mode
 
@@ -178,6 +183,8 @@ def main(args):
         tag += "-inv"
     elif sampling_mode == 'uniform':
         tag += "-uni"
+    elif sampling_mode == 'softmax':
+        tag += f"-lam{lam:+g}"
     run_name = (args.run_name or "distill") + tag + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
 
@@ -328,5 +335,10 @@ if __name__ == "__main__":
                         help="How n is randomly sampled each step (stochastic only): "
                              "default (mode at n_min), inverted (mode at n_max), "
                              "uniform (flat over [n_min, n_max])")
+    parser.add_argument("--lam", type=float, default=None,
+                        help="Boltzmann sampling bias (stochastic only): p(n) ~ "
+                             "exp(lam*(n-mid)/half_range). <0 biased toward n_min, "
+                             "0 uniform, >0 biased toward n_max. Setting this implies "
+                             "--sampling-mode softmax.")
     args = parser.parse_args()
     main(args)
