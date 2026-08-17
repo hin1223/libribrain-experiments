@@ -87,6 +87,7 @@ def run_distillation(train_loader, val_loader, config):
             snr_weighted_kd=distill_config.get("snr_weighted_kd", False),
             deterministic_cycling=distill_config.get("deterministic_cycling", False),
             teacher_confidence_gated_kd=distill_config.get("teacher_confidence_gated_kd", False),
+            sampling_mode=distill_config.get("sampling_mode", "default"),
         )
     else:
         ModuleClass = DistillationModule
@@ -162,6 +163,10 @@ def main(args):
     if getattr(args, 'teacher_confidence_gated_kd', False):
         config["distillation"]["teacher_confidence_gated_kd"] = True
 
+    sampling_mode = getattr(args, 'sampling_mode', 'default')
+    if sampling_mode != 'default':
+        config["distillation"]["sampling_mode"] = sampling_mode
+
     tag = ""
     if getattr(args, 'snr_weighted_kd', False):
         tag += "-snr"
@@ -169,6 +174,10 @@ def main(args):
         tag += "-cyc"
     if getattr(args, 'teacher_confidence_gated_kd', False):
         tag += "-tcg"
+    if sampling_mode == 'inverted':
+        tag += "-inv"
+    elif sampling_mode == 'uniform':
+        tag += "-uni"
     run_name = (args.run_name or "distill") + tag + "-hpo-" + str(args.run_index)
     config["general"]["run_name"] = run_name
 
@@ -314,5 +323,10 @@ if __name__ == "__main__":
     parser.add_argument("--teacher-confidence-gated-kd", action="store_true",
                         help="Weight per-example KD loss by the teacher's own "
                              "prediction confidence (stochastic only)")
+    parser.add_argument("--sampling-mode", choices=["default", "inverted", "uniform"],
+                        default="default",
+                        help="How n is randomly sampled each step (stochastic only): "
+                             "default (mode at n_min), inverted (mode at n_max), "
+                             "uniform (flat over [n_min, n_max])")
     args = parser.parse_args()
     main(args)

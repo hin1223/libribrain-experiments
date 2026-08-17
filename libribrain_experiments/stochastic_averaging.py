@@ -12,6 +12,27 @@ def sample_n(batch_size, n_min=50, n_max=100):
     return np.clip(n, n_min, n_max)
 
 
+def sample_n_inverted(batch_size, n_min=50, n_max=100):
+    """Mirror of sample_n: same distribution shape, but mode at n_max
+    (tending toward the teacher's fixed high-SNR view) instead of n_min.
+
+    Reflects sample_n's output about the midpoint of [n_min, n_max], so
+    whatever probability mass concentrated near n_min now concentrates
+    near n_max, and vice versa.
+    """
+    n = sample_n(batch_size, n_min, n_max)
+    return n_min + n_max - n
+
+
+def sample_n_uniform(batch_size, n_min=50, n_max=100):
+    """Sample averaging counts uniformly over [n_min, n_max] — no mode bias
+    toward either end, unlike sample_n (mode at n_min) or sample_n_inverted
+    (mode at n_max).
+    """
+    n = np.round(np.random.uniform(n_min, n_max, size=batch_size)).astype(int)
+    return np.clip(n, n_min, n_max)
+
+
 def average_trials(raw_trials, n_samples, channels_per_sample):
     """Randomly select n_samples trials from raw_trials and average them.
 

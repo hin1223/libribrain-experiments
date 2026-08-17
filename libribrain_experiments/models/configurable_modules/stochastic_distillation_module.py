@@ -1,7 +1,9 @@
 import torch
 import torch.nn.functional as F
 from .distillation_module import DistillationModule
-from libribrain_experiments.stochastic_averaging import sample_n, average_trials
+from libribrain_experiments.stochastic_averaging import (
+    sample_n, sample_n_inverted, sample_n_uniform, average_trials,
+)
 
 
 class StochasticDistillationModule(DistillationModule):
@@ -18,7 +20,7 @@ class StochasticDistillationModule(DistillationModule):
                  teacher_checkpoint_path, temperature=2.0, alpha=0.5,
                  n_min=50, n_max=100, n_eval=50, channels_per_sample=306,
                  snr_weighted_kd=False, deterministic_cycling=False,
-                 teacher_confidence_gated_kd=False):
+                 teacher_confidence_gated_kd=False, sampling_mode="default"):
         super().__init__(
             model_config, n_classes, optimizer_config, loss_config,
             teacher_checkpoint_path, temperature=temperature, alpha=alpha,
@@ -31,6 +33,7 @@ class StochasticDistillationModule(DistillationModule):
         self.snr_weighted_kd = snr_weighted_kd
         self.deterministic_cycling = deterministic_cycling
         self.teacher_confidence_gated_kd = teacher_confidence_gated_kd
+        self.sampling_mode = sampling_mode
 
     def _conditioning(self, n: int) -> torch.Tensor:
         """c = 1/sqrt(N), shape (1, 1) — broadcast over batch in FiLM."""
@@ -56,17 +59,24 @@ class StochasticDistillationModule(DistillationModule):
     def _sample_n(self) -> int:
         """Pick this step's averaging count.
 
-        Default: randomly, mode at n_min (sample_n's noise-std-uniform
-        distribution). If deterministic_cycling is enabled: a deterministic
+        deterministic_cycling (if set) takes priority: a deterministic
         sawtooth sweep through n_min..n_max indexed by global_step — same
-        range of SNR variation, but predictable/reproducible rather than
-        random, so the same training step always sees the same n. Tests
-        whether it's specifically the unpredictability of the student-
-        teacher mismatch (not just its average size) that hurts training.
+        range of SNR variation as random sampling, but predictable rather
+        than random, so the same training step always sees the same n.
+
+        Otherwise, sampling_mode selects the random distribution:
+          - "default": mode at n_min, tail toward n_max (original behavior).
+          - "inverted": mirror of default — mode at n_max (tending toward
+            the teacher's fixed high-SNR view) instead of n_min.
+          - "uniform": flat over [n_min, n_max], no mode bias either way.
         """
         if self.deterministic_cycling:
             span = self.n_max - self.n_min
             return self.n_min if span <= 0 else self.n_min + (self.global_step % (span + 1))
+        if self.sampling_mode == "inverted":
+            return int(sample_n_inverted(1, self.n_min, self.n_max)[0])
+        if self.sampling_mode == "uniform":
+            return int(sample_n_uniform(1, self.n_min, self.n_max)[0])
         return int(sample_n(1, self.n_min, self.n_max)[0])
 
     def _kd_loss(self, student_logits, teacher_logits):

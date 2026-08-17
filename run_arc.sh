@@ -42,4 +42,8 @@ if [ -n "$TEACHER_CONFIDENCE_GATED_KD" ]; then
     CMD="$CMD --teacher-confidence-gated-kd"
 fi
 
+if [ -n "$SAMPLING_MODE" ]; then
+    CMD="$CMD --sampling-mode $SAMPLING_MODE"
+fi
+
 eval $CMD
