@@ -98,8 +98,15 @@ def main(args):
             raise ValueError(
                 "Please provide a project name for wandb logging")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        grouped_samples = config["data"]["general"].get("grouped_samples")
+        level_tag = f"-level{grouped_samples}" if grouped_samples is not None else ""
         wandb.init(project=args.project_name,
-                  name=f"{args.run_name}-seed{config['general']['seed']} ({timestamp})")
+                  name=f"{args.run_name}{level_tag}-seed{config['general']['seed']} ({timestamp})")
+        wandb.config.update({
+            "seed": config["general"]["seed"],
+            "lr": config["optimizer"]["config"]["lr"],
+            "grouped_samples": grouped_samples,
+        }, allow_val_change=True)
         wandb.define_metric("val_loss", summary="min")
         wandb.define_metric("val_f1_macro", summary="max")
         wandb.define_metric("val_bal_acc", summary="max")
