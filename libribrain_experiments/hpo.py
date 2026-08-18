@@ -156,7 +156,8 @@ def main(args):
         test_loader = torch.utils.data.DataLoader(
             test_dataset, **config["data"]["dataloader"])
     test_metrics_callback = TestMetricsCallback(
-        test_loader, labels, samples_per_class, baseline_only=True) if test_loader is not None else None
+        test_loader, labels, samples_per_class, baseline_only=True
+    ) if (test_loader is not None and args.track_test_per_epoch) else None
 
     trainer, best_module, module = run_training(
         train_loader, val_loader, config, len(labels), best_model_metric=best_model_metric,
@@ -208,5 +209,10 @@ if __name__ == "__main__":
     parser.add_argument("--run-name", type=str)
     parser.add_argument("--project-name", type=str,
                         default="libribrain-experiments")
+    parser.add_argument("--track-test-per-epoch", action="store_true",
+                        help="Evaluate the test set at every validation epoch (not just "
+                             "once, post-training). Off by default — extra compute, only "
+                             "useful if you want the true peak-test-F1 epoch, not just "
+                             "the standard select-by-val-metric-then-test-once protocol.")
     args = parser.parse_args()
     main(args)

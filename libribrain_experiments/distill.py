@@ -251,7 +251,8 @@ def main(args):
         adapt_config_to_data(config, train_loader, labels)
         samples_per_class = get_label_counts(raw_label_loader(train_loader), len(labels))
         test_metrics_callback = TestMetricsCallback(
-            test_loader, labels, samples_per_class, baseline_only=True) if test_loader is not None else None
+            test_loader, labels, samples_per_class, baseline_only=True
+        ) if (test_loader is not None and args.track_test_per_epoch) else None
         run_ckpt_dir = os.path.join(config["general"]["checkpoint_path"], config["general"]["run_name"])
         os.makedirs(run_ckpt_dir, exist_ok=True)
         config["general"]["checkpoint_path"] = run_ckpt_dir
@@ -272,7 +273,8 @@ def main(args):
             val_dataset, **config["data"]["dataloader"])
         samples_per_class = get_label_counts(raw_label_loader(train_loader), len(labels))
         test_metrics_callback = TestMetricsCallback(
-            test_loader, labels, samples_per_class, baseline_only=False) if test_loader is not None else None
+            test_loader, labels, samples_per_class, baseline_only=False
+        ) if (test_loader is not None and args.track_test_per_epoch) else None
         _, best_module, module = run_distillation(
             train_loader, val_loader, config, test_metrics_callback=test_metrics_callback)
 
@@ -345,5 +347,10 @@ if __name__ == "__main__":
                              "exp(lam*(n-mid)/half_range). <0 biased toward n_min, "
                              "0 uniform, >0 biased toward n_max. Setting this implies "
                              "--sampling-mode softmax.")
+    parser.add_argument("--track-test-per-epoch", action="store_true",
+                        help="Evaluate the test set at every validation epoch (not just "
+                             "once, post-training). Off by default — extra compute, only "
+                             "useful if you want the true peak-test-F1 epoch, not just "
+                             "the standard select-by-val-metric-then-test-once protocol.")
     args = parser.parse_args()
     main(args)

@@ -50,4 +50,8 @@ if [ -n "$LAM" ]; then
     CMD="$CMD --lam $LAM"
 fi
 
+if [ -n "$TRACK_TEST_PER_EPOCH" ]; then
+    CMD="$CMD --track-test-per-epoch"
+fi
+
 eval $CMD

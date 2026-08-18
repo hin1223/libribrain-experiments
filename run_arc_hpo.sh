@@ -18,9 +18,15 @@ cd /data/engs-pnpl-hl/libribrain-experiments
 CONFIG_NAME=${CONFIG_NAME:-averaging-ablation}
 RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-$CONFIG_NAME}
 
-python -m libribrain_experiments.hpo \
+CMD="python -m libribrain_experiments.hpo \
     --config configs/phoneme/${CONFIG_NAME}/base-config-arc.yaml \
     --search-space configs/phoneme/${CONFIG_NAME}/search-space.yaml \
     --run-index $RUN_INDEX \
     --run-name ${RUN_NAME_PREFIX} \
-    --project-name libribrain-experiments
+    --project-name libribrain-experiments"
+
+if [ -n "$TRACK_TEST_PER_EPOCH" ]; then
+    CMD="$CMD --track-test-per-epoch"
+fi
+
+eval $CMD
