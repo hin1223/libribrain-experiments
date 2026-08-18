@@ -162,7 +162,8 @@ def log_results(result, y, preds, logits, output_path, run_name, hpo_config=None
     result["targets"] = y
     result["preds"] = preds
     result["logits"] = logits
-    del result["val_cm"]
+    cm_key = next(k for k in result if k.endswith("_cm"))
+    del result[cm_key]
     for key, value in result.items():
         if (isinstance(value, torch.Tensor)):
             result[key] = value.cpu().tolist()
@@ -239,7 +240,7 @@ def run_training(train_loader, val_loader, config, n_classes, best_model_metric=
     return trainer, best_module, module
 
 
-def run_validation(val_loader, module, labels, samples_per_class=None):
+def run_validation(val_loader, module, labels, samples_per_class=None, prefix="val"):
     disp_labels = labels
     module.eval()
     all_preds = []
@@ -330,42 +331,41 @@ def run_validation(val_loader, module, labels, samples_per_class=None):
     f1_weighted_val = f1_weighted(all_preds, all_targets)
 
     result = {
-        "val_cm": wandb.plot.confusion_matrix(
+        f"{prefix}_cm": wandb.plot.confusion_matrix(
             probs=None,
             y_true=all_targets.cpu().numpy(),
             preds=all_preds.cpu().numpy(),
             class_names=disp_labels
         ),
-        "val_naive_acc": naive_acc,
-        "val_random_acc": random_acc,
-        "val_random_bal_acc": random_balanced_acc,
-        "val_random_f1_macro": random_f1_macro,
-        "val_random_f1_micro": random_f1_micro,
-        "val_random_f1_weighted": random_f1_weighted,
-        "val_naive_acc": naive_acc,
-        "val_naive_bal_acc": naive_balanced_acc,
-        "val_naive_f1_macro": naive_f1_macro,
-        "val_naive_f1_micro": naive_f1_micro,
-        "val_naive_f1_weighted": naive_f1_weighted,
-        "val_naive_loss": naive_loss,
-        "val_acc": acc_val,
-        "val_bal_acc": bal_acc_val,
-        "val_f1_macro": f1_macro_val,
-        "val_f1_micro": f1_micro_val,
-        "val_f1_weighted": f1_weighted_val,
-        "val_loss": loss,
-        "val_rocauc_macro": rocauc_macro_val,
-        "val_rocauc_micro": rocauc_micro_val,
-        "val_naive_rocauc_macro": naive_rocauc_macro,
-        "val_naive_rocauc_micro": naive_rocauc_micro,
+        f"{prefix}_naive_acc": naive_acc,
+        f"{prefix}_random_acc": random_acc,
+        f"{prefix}_random_bal_acc": random_balanced_acc,
+        f"{prefix}_random_f1_macro": random_f1_macro,
+        f"{prefix}_random_f1_micro": random_f1_micro,
+        f"{prefix}_random_f1_weighted": random_f1_weighted,
+        f"{prefix}_naive_bal_acc": naive_balanced_acc,
+        f"{prefix}_naive_f1_macro": naive_f1_macro,
+        f"{prefix}_naive_f1_micro": naive_f1_micro,
+        f"{prefix}_naive_f1_weighted": naive_f1_weighted,
+        f"{prefix}_naive_loss": naive_loss,
+        f"{prefix}_acc": acc_val,
+        f"{prefix}_bal_acc": bal_acc_val,
+        f"{prefix}_f1_macro": f1_macro_val,
+        f"{prefix}_f1_micro": f1_micro_val,
+        f"{prefix}_f1_weighted": f1_weighted_val,
+        f"{prefix}_loss": loss,
+        f"{prefix}_rocauc_macro": rocauc_macro_val,
+        f"{prefix}_rocauc_micro": rocauc_micro_val,
+        f"{prefix}_naive_rocauc_macro": naive_rocauc_macro,
+        f"{prefix}_naive_rocauc_micro": naive_rocauc_micro,
     }
     if (len(disp_labels) == 2):
         jaccard_index = JaccardIndex(
             task="multiclass", num_classes=2).to(module.device)
         jaccard_index_val = jaccard_index(all_preds, all_targets)
         jaccard_index_naive = jaccard_index(naive_preds, all_targets)
-        result["val_jaccard_index"] = jaccard_index_val
-        result["val_naive_jaccard_index"] = jaccard_index_naive
+        result[f"{prefix}_jaccard_index"] = jaccard_index_val
+        result[f"{prefix}_naive_jaccard_index"] = jaccard_index_naive
 
     binary_acc = Accuracy(task="binary").to(module.device)
     binary_bal_acc = Recall(task="multiclass", num_classes=2,
@@ -388,15 +388,15 @@ def run_validation(val_loader, module, labels, samples_per_class=None):
         class_naive_bal_acc = binary_bal_acc(class_naive_preds, class_targets)
         class_naive_f1 = binary_f1(class_naive_preds, class_targets)
         class_rocauc = binary_rocauc(class_probas, class_targets)
-        result[f"val_class_{c}_acc"] = class_acc
-        result[f"val_class_{c}_f1"] = class_f1
-        result[f"val_class_{c}_random_acc"] = class_random_acc
-        result[f"val_class_{c}_random_f1"] = class_random_f1
-        result[f"val_class_{c}_naive_acc"] = class_naive_acc
-        result[f"val_class_{c}_naive_bal_acc"] = class_naive_bal_acc
-        result[f"val_class_{c}_naive_f1"] = class_naive_f1
-        result[f"val_class_{c}_bal_acc"] = class_bal_acc
-        result[f"val_class_{c}_rocauc"] = class_rocauc
+        result[f"{prefix}_class_{c}_acc"] = class_acc
+        result[f"{prefix}_class_{c}_f1"] = class_f1
+        result[f"{prefix}_class_{c}_random_acc"] = class_random_acc
+        result[f"{prefix}_class_{c}_random_f1"] = class_random_f1
+        result[f"{prefix}_class_{c}_naive_acc"] = class_naive_acc
+        result[f"{prefix}_class_{c}_naive_bal_acc"] = class_naive_bal_acc
+        result[f"{prefix}_class_{c}_naive_f1"] = class_naive_f1
+        result[f"{prefix}_class_{c}_bal_acc"] = class_bal_acc
+        result[f"{prefix}_class_{c}_rocauc"] = class_rocauc
     return result, all_targets.cpu().numpy(), all_preds.cpu().numpy(), all_logits.cpu().numpy()
 
 

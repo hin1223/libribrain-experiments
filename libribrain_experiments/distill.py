@@ -303,7 +303,8 @@ def main(args):
         test_loader = torch.utils.data.DataLoader(
             test_dataset, **config["data"]["dataloader"])
         result, y, preds, logits = run_validation(
-            student_loader(test_loader), eval_module, labels, samples_per_class=samples_per_class)
+            student_loader(test_loader), eval_module, labels, samples_per_class=samples_per_class,
+            prefix="test")
         log_results(result, y, preds, logits, config["general"]["output_path"], "test-best-" + run_name)
 
     if wandb.run is not None:

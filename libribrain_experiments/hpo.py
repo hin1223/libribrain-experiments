@@ -169,7 +169,7 @@ def main(args):
 
     best_module = best_module.to(find_usable_cuda_devices()[0])
     result, y, preds, logits = run_validation(
-        val_loader, best_module, labels, avg_evals=[], samples_per_class=samples_per_class)
+        val_loader, best_module, labels, samples_per_class=samples_per_class)
     start_time = time.time()
     print("VALIDATED MODEL in ", time.time() - start_time, " seconds")
     log_results(result, y, preds, logits,
@@ -182,7 +182,7 @@ def main(args):
         test_loader = torch.utils.data.DataLoader(
             test_dataset, **config["data"]["dataloader"])
         result, y, preds, logits = run_validation(
-            test_loader, best_module, labels, samples_per_class=samples_per_class)
+            test_loader, best_module, labels, samples_per_class=samples_per_class, prefix="test")
         start_time = time.time()
         print("VALIDATED MODEL in ", time.time() - start_time, " seconds")
         log_results(result, y, preds, logits,
