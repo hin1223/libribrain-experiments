@@ -22,6 +22,7 @@ from libribrain_experiments.models.configurable_modules.stochastic_distillation_
 from libribrain_experiments.models.configurable_modules.scheduled_distillation_module import ScheduledDistillationModule
 from libribrain_experiments.models.configurable_modules.classification_module import ClassificationModule
 from libribrain_experiments.utils import run_training
+from libribrain_experiments.callbacks import TestMetricsCallback, _ConditionedEvalModule
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -63,7 +64,7 @@ def get_paired_datasets_from_config(data_config):
     return train_dataset, val_dataset, test_dataset, train_labels
 
 
-def run_distillation(train_loader, val_loader, config):
+def run_distillation(train_loader, val_loader, config, test_metrics_callback=None):
     distill_config = config["distillation"]
     data_general = config["data"]["general"]
     stochastic = "n_min" in data_general
@@ -124,12 +125,16 @@ def run_distillation(train_loader, val_loader, config):
     if resume_ckpt:
         print(f"Resuming distillation from checkpoint: {resume_ckpt}")
 
+    callbacks = [checkpoint_cb]
+    if test_metrics_callback is not None:
+        callbacks.append(test_metrics_callback)
+
     trainer = Trainer(
         logger=logger,
         accelerator="auto",
         precision="bf16-mixed",
         log_every_n_steps=1,
-        callbacks=[checkpoint_cb],
+        callbacks=callbacks,
         **config["trainer"],
     )
     trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader, ckpt_path=resume_ckpt)
@@ -220,6 +225,21 @@ def main(args):
 
     config["_n_classes"] = len(labels)
 
+    test_loader = None
+    if paired_test is not None:
+        test_dataset = StudentOnlyDataset(paired_test) if args.baseline_only else paired_test
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, **config["data"]["dataloader"])
+
+    def raw_label_loader(loader):
+        # yields [None, y] pairs — enough for get_label_counts, without
+        # needing best_module (not available yet) for student averaging
+        if args.baseline_only:
+            yield from loader
+        else:
+            for _, _, y in loader:
+                yield [None, y]
+
     if args.baseline_only:
         train_dataset = StudentOnlyDataset(paired_train)
         val_dataset = StudentOnlyDataset(paired_val)
@@ -229,6 +249,9 @@ def main(args):
         val_loader = torch.utils.data.DataLoader(
             val_dataset, **config["data"]["dataloader"])
         adapt_config_to_data(config, train_loader, labels)
+        samples_per_class = get_label_counts(raw_label_loader(train_loader), len(labels))
+        test_metrics_callback = TestMetricsCallback(
+            test_loader, labels, samples_per_class, baseline_only=True) if test_loader is not None else None
         run_ckpt_dir = os.path.join(config["general"]["checkpoint_path"], config["general"]["run_name"])
         os.makedirs(run_ckpt_dir, exist_ok=True)
         config["general"]["checkpoint_path"] = run_ckpt_dir
@@ -237,7 +260,8 @@ def main(args):
         if resume_ckpt:
             print(f"Resuming baseline from checkpoint: {resume_ckpt}")
         _, best_module, module = run_training(
-            train_loader, val_loader, config, len(labels), resume_ckpt=resume_ckpt)
+            train_loader, val_loader, config, len(labels), resume_ckpt=resume_ckpt,
+            test_metrics_callback=test_metrics_callback)
     else:
         train_dataset = paired_train
         val_dataset = paired_val
@@ -246,7 +270,11 @@ def main(args):
             train_dataset, shuffle=True, **config["data"]["dataloader"])
         val_loader = torch.utils.data.DataLoader(
             val_dataset, **config["data"]["dataloader"])
-        _, best_module, module = run_distillation(train_loader, val_loader, config)
+        samples_per_class = get_label_counts(raw_label_loader(train_loader), len(labels))
+        test_metrics_callback = TestMetricsCallback(
+            test_loader, labels, samples_per_class, baseline_only=False) if test_loader is not None else None
+        _, best_module, module = run_distillation(
+            train_loader, val_loader, config, test_metrics_callback=test_metrics_callback)
 
     del module
 
@@ -267,41 +295,17 @@ def main(args):
                     student_x = best_module._average_student(student_x, best_module.n_eval)
                 yield [student_x, y]
 
-    class _ConditionedEvalModule:
-        """Wraps a module needing FiLM conditioning c=1/sqrt(n_eval) so it exposes
-        the plain module(x) interface run_validation() expects."""
-
-        def __init__(self, module, c):
-            self.module = module
-            self.c = c
-
-        def eval(self):
-            self.module.eval()
-
-        @property
-        def device(self):
-            return self.module.device
-
-        def __call__(self, x):
-            c = self.c.expand(x.size(0), -1)
-            return self.module(x, c)
-
     if hasattr(best_module, "_conditioning"):
         eval_module = _ConditionedEvalModule(
             best_module, best_module._conditioning(best_module.n_eval))
     else:
         eval_module = best_module
 
-    samples_per_class = get_label_counts(student_loader(train_loader), len(labels))
-
     result, y, preds, logits = run_validation(
         student_loader(val_loader), eval_module, labels, samples_per_class=samples_per_class)
     log_results(result, y, preds, logits, config["general"]["output_path"], "val-best-" + run_name)
 
-    if paired_test is not None:
-        test_dataset = StudentOnlyDataset(paired_test) if args.baseline_only else paired_test
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset, **config["data"]["dataloader"])
+    if test_loader is not None:
         result, y, preds, logits = run_validation(
             student_loader(test_loader), eval_module, labels, samples_per_class=samples_per_class,
             prefix="test")

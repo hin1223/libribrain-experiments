@@ -191,7 +191,7 @@ def get_label_distribution(train_loader, n_classes):
     return label_distribution
 
 
-def run_training(train_loader, val_loader, config, n_classes, best_model_metric="val_f1_macro", module=None, best_model_metric_mode="max", resume_ckpt=None):
+def run_training(train_loader, val_loader, config, n_classes, best_model_metric="val_f1_macro", module=None, best_model_metric_mode="max", resume_ckpt=None, test_metrics_callback=None):
     if module is None:
         module = ClassificationModule(
             model_config=config["model"], n_classes=n_classes, optimizer_config=config["optimizer"], loss_config=config["loss"])
@@ -218,6 +218,9 @@ def run_training(train_loader, val_loader, config, n_classes, best_model_metric=
             save_last=True
         )
         callbacks.append(checkpoint_callback)
+
+    if test_metrics_callback is not None:
+        callbacks.append(test_metrics_callback)
 
     trainer_config = config["trainer"]
     trainer = Trainer(

@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import time
 from libribrain_experiments.utils import get_label_counts
+from libribrain_experiments.callbacks import TestMetricsCallback
 from lightning.pytorch.accelerators import find_usable_cuda_devices
 
 
@@ -148,13 +149,21 @@ def main(args):
     if resume_ckpt:
         print(f"Resuming from checkpoint: {resume_ckpt}")
 
+    samples_per_class = get_label_counts(train_loader, len(labels))
+
+    test_loader = None
+    if test_dataset is not None:
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, **config["data"]["dataloader"])
+    test_metrics_callback = TestMetricsCallback(
+        test_loader, labels, samples_per_class, baseline_only=True) if test_loader is not None else None
+
     trainer, best_module, module = run_training(
         train_loader, val_loader, config, len(labels), best_model_metric=best_model_metric,
-        best_model_metric_mode=best_model_metric_mode, resume_ckpt=resume_ckpt)
+        best_model_metric_mode=best_model_metric_mode, resume_ckpt=resume_ckpt,
+        test_metrics_callback=test_metrics_callback)
     start_time = time.time()
     print("TRAINED MODEL in ", time.time() - start_time, " seconds")
-
-    samples_per_class = get_label_counts(train_loader, len(labels))
 
     """result, y, preds, logits = run_validation(
         val_loader, module, labels, avg_evals=[5, 100], samples_per_class=samples_per_class)
@@ -177,10 +186,8 @@ def main(args):
     start_time = time.time()
     print("LOGGED BEST RESULTS in ", time.time() - start_time, " seconds")
 
-    if test_dataset is not None:
+    if test_loader is not None:
         print("Validating on test set")
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset, **config["data"]["dataloader"])
         result, y, preds, logits = run_validation(
             test_loader, best_module, labels, samples_per_class=samples_per_class, prefix="test")
         start_time = time.time()
