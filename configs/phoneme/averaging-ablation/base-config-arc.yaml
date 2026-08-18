@@ -107,4 +107,4 @@ general:
   output_path: '/data/engs-pnpl-hl/results/averaging-ablation'
   checkpoint_path: '/data/engs-pnpl-hl/checkpoints/averaging-ablation'
   seed: 42
-  best_model_metrics: 'val_loss'
+  best_model_metrics: 'val_f1_macro'

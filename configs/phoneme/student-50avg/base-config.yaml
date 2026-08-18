@@ -114,4 +114,4 @@ general:
   output_path: '/Users/hin/Desktop/Python/libribrain/results/student-50avg'
   checkpoint_path: '/Users/hin/Desktop/Python/libribrain/checkpoints/student-50avg'
   seed: 42
-  best_model_metrics: 'val_loss'
+  best_model_metrics: 'val_f1_macro'
