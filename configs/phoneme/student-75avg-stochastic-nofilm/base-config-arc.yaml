@@ -94,7 +94,7 @@ model:
   - flatten:
 
 distillation:
-  teacher_checkpoint_path: '/data/engs-pnpl-hl/checkpoints/final-input-avg/best-val_bal_acc-full-run-hpo-0-epoch=20-val_f1_macro=0.6882.ckpt'
+  teacher_checkpoint_path: '/data/engs-pnpl-hl/checkpoints/final-input-avg/best-val_f1_macro-full-run-hpo-0-epoch=17-val_f1_macro=0.7081.ckpt'
   temperature: 2.0
   alpha: 0.6
 
