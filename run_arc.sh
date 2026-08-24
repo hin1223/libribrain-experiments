@@ -54,4 +54,8 @@ if [ -n "$TRACK_TEST_PER_EPOCH" ]; then
     CMD="$CMD --track-test-per-epoch"
 fi
 
+if [ -n "$BASELINE_ONLY" ]; then
+    CMD="$CMD --baseline-only"
+fi
+
 eval $CMD
