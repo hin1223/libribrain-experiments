@@ -89,6 +89,7 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
         baseline_only=baseline_only,
         alpha_override=alpha_override,
         temperature_override=None,
+        track_test_per_epoch=False,
     )
     main(args)
 
@@ -99,14 +100,16 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
     volumes={"/vol": volume},
     secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
 )
-def run_sequential(jobs: list, config_name: str = "student-50avg"):
+def run_sequential(jobs: list, config_name: str = "student-50avg", baseline_only: bool = False):
     for run_index, alpha in jobs:
-        run_distill.remote(run_index, alpha_override=alpha, config_name=config_name)
+        run_distill.remote(run_index, alpha_override=alpha, config_name=config_name, baseline_only=baseline_only)
 
 
 @app.local_entrypoint()
 def main():
+    # baseline CE (step-matched, 63 steps/epoch) for student-50avg, seeds 0-9, temp=2.0
     run_sequential.spawn(
-        [(i, None) for i in range(5, 15)],
-        config_name="student-50avg-stochastic",
+        [(i, None) for i in [1, 6, 11, 16, 21, 26, 31, 36, 41, 46]],
+        config_name="student-50avg",
+        baseline_only=True,
     )
