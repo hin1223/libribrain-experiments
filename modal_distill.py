@@ -11,13 +11,15 @@ app = modal.App("libribrain-distill")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install([
-        "torch==2.11.0",
-        "torchvision==0.26.0",
+        # pinned to match the ARC libribrain conda env exactly (checked via
+        # pip freeze there) so Modal and ARC runs use identical library versions
+        "torch==2.12.1",
+        "torchvision==0.27.1",
         "torchaudio==2.11.0",
-        "pytorch-lightning==2.6.1",
-        "lightning",
-        "wandb",
-        "pnpl",
+        "pytorch-lightning==2.6.5",
+        "lightning==2.6.5",
+        "wandb==0.27.2",
+        "pnpl==0.1.1",
         "numpy",
         "scikit-learn",
         "h5py",
@@ -105,6 +107,72 @@ def run_sequential(jobs: list, config_name: str = "student-50avg", baseline_only
         run_distill.remote(run_index, alpha_override=alpha, config_name=config_name, baseline_only=baseline_only)
 
 
+@app.function(
+    image=image,
+    gpu="L4",
+    timeout=3600 * 14,
+    volumes={"/vol": volume},
+    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
+    max_containers=9,
+    retries=10,
+    memory=65536,
+)
+def run_baseline_traintest(run_index: int, config_name: str, test_level: int = 50):
+    """Train a plain baseline-Xavg (native averaging, hpo.py) config, then
+    evaluate the resulting checkpoint at test_level via evaluate_averaging.py —
+    the Modal equivalent of run_arc_traintest.sh."""
+    import sys, os, yaml, glob, tempfile
+    sys.path.insert(0, "/app")
+    os.chdir("/app")
+
+    with open(f"configs/phoneme/{config_name}/base-config-arc.yaml") as f:
+        config = yaml.safe_load(f)
+
+    for split in ["train", "val", "test"]:
+        if split in config["data"]["datasets"]:
+            for ds in config["data"]["datasets"][split]:
+                for ds_cfg in ds.values():
+                    ds_cfg["data_path"] = DATA_PATH
+                    ds_cfg["preload_files"] = True
+
+    config["general"]["output_path"] = f"{RESULTS_PATH}/{config_name}"
+    config["general"]["checkpoint_path"] = f"{CHECKPOINTS_PATH}/{config_name}"
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config, f)
+        tmp_config_path = f.name
+
+    from libribrain_experiments.hpo import main as hpo_main
+    hpo_args = Namespace(
+        config=tmp_config_path,
+        search_space=f"configs/phoneme/{config_name}/search-space.yaml",
+        run_name=config_name,
+        run_index=run_index,
+        project_name=WANDB_PROJECT,
+        track_test_per_epoch=False,
+    )
+    hpo_main(hpo_args)
+
+    run_name = f"{config_name}-hpo-{run_index}"
+    ckpt_dir = f"{CHECKPOINTS_PATH}/{config_name}/{run_name}"
+    ckpts = glob.glob(f"{ckpt_dir}/best-*.ckpt")
+    if not ckpts:
+        raise FileNotFoundError(f"No checkpoint found in {ckpt_dir}")
+
+    from libribrain_experiments.evaluate_averaging import main as eval_main
+    eval_args = Namespace(
+        config=tmp_config_path,
+        checkpoint=ckpts[0],
+        module="classification",
+        split="test",
+        levels=str(test_level),
+        n_pool=100,
+        batch_size=8,
+        output=f"{RESULTS_PATH}/{config_name}/{run_name}-test{test_level}.json",
+    )
+    eval_main(eval_args)
+
+
 @app.local_entrypoint()
 def main():
     # baseline CE (step-matched, 63 steps/epoch) for student-50avg, seeds 0-9, temp=2.0
@@ -113,3 +181,10 @@ def main():
         config_name="student-50avg",
         baseline_only=True,
     )
+
+
+@app.local_entrypoint()
+def traintest50():
+    # train baseline-{5,15,40}avg (seeds 0-2), evaluate test-time at level=50 — 9 jobs, parallel across GPUs
+    jobs = [(seed, f"baseline-{level}avg") for level in [5, 15, 40] for seed in [0, 1, 2]]
+    list(run_baseline_traintest.starmap(jobs))
