@@ -188,3 +188,10 @@ def traintest50():
     # train baseline-{5,15,40}avg (seeds 0-2), evaluate test-time at level=50 — 9 jobs, parallel across GPUs
     jobs = [(seed, f"baseline-{level}avg") for level in [5, 15, 40] for seed in [0, 1, 2]]
     list(run_baseline_traintest.starmap(jobs))
+
+
+@app.local_entrypoint()
+def traintest50seed1():
+    # train baseline-{5,15,40,60}avg, seed 1 only, evaluate test-time at level=50 — 4 jobs
+    jobs = [(1, f"baseline-{level}avg") for level in [5, 15, 40, 60]]
+    list(run_baseline_traintest.starmap(jobs))
