@@ -195,3 +195,10 @@ def traintest50seed1():
     # train baseline-{5,15,40,60}avg, seed 1 only, evaluate test-time at level=50 — 4 jobs
     jobs = [(1, f"baseline-{level}avg") for level in [5, 15, 40, 60]]
     list(run_baseline_traintest.starmap(jobs))
+
+
+@app.local_entrypoint()
+def baseline50seeds6to9():
+    # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 6-9, temp=2.0 — 4 jobs, parallel
+    jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
+    list(run_distill.starmap(jobs))
