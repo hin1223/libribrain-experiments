@@ -186,19 +186,24 @@ def main():
 @app.local_entrypoint()
 def traintest50():
     # train baseline-{5,15,40}avg (seeds 0-2), evaluate test-time at level=50 — 9 jobs, parallel across GPUs
+    # Each job spawned independently (not .starmap()) so one job's failure/preemption
+    # can never cascade into cancelling its siblings via a shared blocking coordinator.
     jobs = [(seed, f"baseline-{level}avg") for level in [5, 15, 40] for seed in [0, 1, 2]]
-    list(run_baseline_traintest.starmap(jobs))
+    for seed, config_name in jobs:
+        run_baseline_traintest.spawn(seed, config_name)
 
 
 @app.local_entrypoint()
 def traintest50seed1():
     # train baseline-{5,15,40,60}avg, seed 1 only, evaluate test-time at level=50 — 4 jobs
     jobs = [(1, f"baseline-{level}avg") for level in [5, 15, 40, 60]]
-    list(run_baseline_traintest.starmap(jobs))
+    for seed, config_name in jobs:
+        run_baseline_traintest.spawn(seed, config_name)
 
 
 @app.local_entrypoint()
 def baseline50seeds6to9():
     # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 6-9, temp=2.0 — 4 jobs, parallel
     jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
-    list(run_distill.starmap(jobs))
+    for run_index, baseline_only, alpha_override, config_name in jobs:
+        run_distill.spawn(run_index, baseline_only=baseline_only, alpha_override=alpha_override, config_name=config_name)
