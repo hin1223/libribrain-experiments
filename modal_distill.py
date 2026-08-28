@@ -207,3 +207,11 @@ def baseline50seeds6to9():
     jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
     for run_index, baseline_only, alpha_override, config_name in jobs:
         run_distill.spawn(run_index, baseline_only=baseline_only, alpha_override=alpha_override, config_name=config_name)
+
+
+@app.local_entrypoint()
+def baseline50seeds3to5():
+    # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 3-5, temp=2.0 — 3 jobs, parallel
+    jobs = [(run_index, True, None, "student-50avg") for run_index in [16, 21, 26]]
+    for run_index, baseline_only, alpha_override, config_name in jobs:
+        run_distill.spawn(run_index, baseline_only=baseline_only, alpha_override=alpha_override, config_name=config_name)
