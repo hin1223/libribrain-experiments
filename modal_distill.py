@@ -217,6 +217,15 @@ def traintest50_10():
 
 
 @app.local_entrypoint()
+def traintest50_2030_extra():
+    # extra seeds for baseline-20avg (seeds 2-3) and baseline-30avg (seed 2), test on 50 — 3 jobs
+    # prioritized to strengthen the "peak at 25" claim (20/30 flank the apparent peak)
+    jobs = [(2, "baseline-20avg"), (3, "baseline-20avg"), (2, "baseline-30avg")]
+    for seed, config_name in jobs:
+        run_baseline_traintest.spawn(seed, config_name)
+
+
+@app.local_entrypoint()
 def baseline50seeds6to9():
     # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 6-9, temp=2.0 — 4 jobs, parallel
     jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
