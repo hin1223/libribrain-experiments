@@ -210,6 +210,13 @@ def traintest50_20_30_85():
 
 
 @app.local_entrypoint()
+def traintest50_10():
+    # train baseline-10avg, seeds 0-1, evaluate test-time at level=50 — 2 jobs
+    for seed in [0, 1]:
+        run_baseline_traintest.spawn(seed, "baseline-10avg")
+
+
+@app.local_entrypoint()
 def baseline50seeds6to9():
     # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 6-9, temp=2.0 — 4 jobs, parallel
     jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
