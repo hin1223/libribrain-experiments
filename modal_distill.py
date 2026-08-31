@@ -232,6 +232,12 @@ def traintest50_85_extra():
 
 
 @app.local_entrypoint()
+def traintest50_10_extra():
+    # extra seed for baseline-10avg (seed 2), test on 50 — 1 job
+    run_baseline_traintest.spawn(2, "baseline-10avg")
+
+
+@app.local_entrypoint()
 def baseline50seeds6to9():
     # step-matched CE baseline (63 steps/epoch, --baseline-only) for student-50avg, seeds 6-9, temp=2.0 — 4 jobs, parallel
     jobs = [(run_index, True, None, "student-50avg") for run_index in [31, 36, 41, 46]]
