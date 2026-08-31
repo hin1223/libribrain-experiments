@@ -5,3 +5,5 @@ wandb/
 .DS_Store
 <DATA_PATH>/
 <CHECKPOINTS_PATH>/
+modal_backup_checkpoints/
+modal_backup_teacher-checkpoint.ckpt
