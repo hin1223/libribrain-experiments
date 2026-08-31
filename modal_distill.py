@@ -52,7 +52,7 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
     os.chdir("/app")
 
     # Load and patch config in memory — no file writes, safe for parallel runs
-    with open(f"configs/phoneme/{config_name}/base-config.yaml") as f:
+    with open(f"configs/phoneme/{config_name}/base-config-arc.yaml") as f:
         config = yaml.safe_load(f)
 
     for split in ["train", "val", "test"]:
