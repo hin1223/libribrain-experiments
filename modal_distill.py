@@ -269,11 +269,11 @@ def baseline50seeds3to5():
     volumes={"/vol": volume},
     secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
 )
-def run_eval_timing(config_name: str, run_index: int, test_level: int):
+def run_eval_timing(config_name: str, run_index: int, test_level: int, log_wandb: bool = False):
     """Times a single evaluate_averaging.py call against an already-trained
     checkpoint — the same code path as ARC's run_arc_matrix.sh array job —
     to check whether its 15-minute time budget is realistic."""
-    import sys, os, glob, time, tempfile, yaml
+    import sys, os, glob, json, time, tempfile, yaml
     sys.path.insert(0, "/app")
     os.chdir("/app")
 
@@ -295,6 +295,8 @@ def run_eval_timing(config_name: str, run_index: int, test_level: int):
     if not ckpts:
         raise FileNotFoundError(f"No checkpoint found in {ckpt_dir}")
 
+    out_path = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False).name
+
     from libribrain_experiments.evaluate_averaging import main as eval_main
     t0 = time.time()
     eval_args = Namespace(
@@ -305,14 +307,34 @@ def run_eval_timing(config_name: str, run_index: int, test_level: int):
         levels=str(test_level),
         n_pool=200,
         batch_size=8,
-        output=None,
+        output=out_path,
     )
     eval_main(eval_args)
     elapsed = time.time() - t0
+    with open(out_path) as f:
+        results = json.load(f)
     print(f"EVAL TIMING: {elapsed:.1f}s ({elapsed / 60:.2f} min) for {run_name} @ test level {test_level}")
+    print(f"RESULTS: {results}")
+
+    if log_wandb:
+        import wandb
+        wandb.init(project=WANDB_PROJECT, name=f"{run_name}-test{test_level}-timing")
+        wandb.log({
+            "test_level": test_level,
+            "elapsed_seconds": elapsed,
+            "f1_macro": results[str(test_level)]["f1_macro"],
+            "bal_acc": results[str(test_level)]["bal_acc"],
+        })
+        wandb.finish()
 
 
 @app.local_entrypoint()
 def timing_test():
     # single timing probe: baseline-85avg-hpo-0 (already trained), evaluated at test level 50
-    run_eval_timing.remote("baseline-85avg", 0, 50)
+    run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=False)
+
+
+@app.local_entrypoint()
+def timing_test_wandb():
+    # same probe, but also logs the result + elapsed time to wandb
+    run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
