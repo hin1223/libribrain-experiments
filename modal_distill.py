@@ -77,7 +77,7 @@ def run_distill(run_index: int, baseline_only: bool = False, alpha_override: flo
 
     alpha_tag = f"-a{int(alpha_override * 10):02d}" if alpha_override is not None else ""
     if baseline_only:
-        run_name = f"baseline-50avg{alpha_tag}"
+        run_name = f"{config_name}-abo{alpha_tag}"
     else:
         run_name = f"{config_name}{alpha_tag}"
 
