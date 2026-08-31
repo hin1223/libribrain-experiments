@@ -335,6 +335,15 @@ def timing_test():
 
 
 @app.local_entrypoint()
+def student95_seed5_triplet():
+    # student-95avg, seed 5 (first seed not covered by ARC's seeds-0-4 batch),
+    # across all 3 categories — 3 jobs, parallel
+    run_distill.spawn(5, baseline_only=True, alpha_override=None, config_name="student-95avg")
+    run_distill.spawn(5, baseline_only=False, alpha_override=0.5, config_name="student-95avg")
+    run_distill.spawn(26, baseline_only=False, alpha_override=0.6, config_name="student-95avg-scheduled")
+
+
+@app.local_entrypoint()
 def timing_test_wandb():
     # same probe, but also logs the result + elapsed time to wandb
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
