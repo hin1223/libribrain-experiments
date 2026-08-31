@@ -260,3 +260,59 @@ def baseline50seeds3to5():
     jobs = [(run_index, True, None, "student-50avg") for run_index in [16, 21, 26]]
     for run_index, baseline_only, alpha_override, config_name in jobs:
         run_distill.spawn(run_index, baseline_only=baseline_only, alpha_override=alpha_override, config_name=config_name)
+
+
+@app.function(
+    image=image,
+    gpu="L4",
+    timeout=1800,
+    volumes={"/vol": volume},
+    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
+)
+def run_eval_timing(config_name: str, run_index: int, test_level: int):
+    """Times a single evaluate_averaging.py call against an already-trained
+    checkpoint — the same code path as ARC's run_arc_matrix.sh array job —
+    to check whether its 15-minute time budget is realistic."""
+    import sys, os, glob, time, tempfile, yaml
+    sys.path.insert(0, "/app")
+    os.chdir("/app")
+
+    with open(f"configs/phoneme/{config_name}/base-config-arc.yaml") as f:
+        config = yaml.safe_load(f)
+    for split in ["train", "val", "test"]:
+        if split in config["data"]["datasets"]:
+            for ds in config["data"]["datasets"][split]:
+                for ds_cfg in ds.values():
+                    ds_cfg["data_path"] = DATA_PATH
+                    ds_cfg["preload_files"] = True
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config, f)
+        tmp_config_path = f.name
+
+    run_name = f"{config_name}-hpo-{run_index}"
+    ckpt_dir = f"{CHECKPOINTS_PATH}/{config_name}/{run_name}"
+    ckpts = glob.glob(f"{ckpt_dir}/best-*.ckpt")
+    if not ckpts:
+        raise FileNotFoundError(f"No checkpoint found in {ckpt_dir}")
+
+    from libribrain_experiments.evaluate_averaging import main as eval_main
+    t0 = time.time()
+    eval_args = Namespace(
+        config=tmp_config_path,
+        checkpoint=ckpts[0],
+        module="classification",
+        split="test",
+        levels=str(test_level),
+        n_pool=200,
+        batch_size=8,
+        output=None,
+    )
+    eval_main(eval_args)
+    elapsed = time.time() - t0
+    print(f"EVAL TIMING: {elapsed:.1f}s ({elapsed / 60:.2f} min) for {run_name} @ test level {test_level}")
+
+
+@app.local_entrypoint()
+def timing_test():
+    # single timing probe: baseline-85avg-hpo-0 (already trained), evaluated at test level 50
+    run_eval_timing.remote("baseline-85avg", 0, 50)
