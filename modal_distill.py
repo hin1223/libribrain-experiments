@@ -337,10 +337,12 @@ def timing_test():
 @app.local_entrypoint()
 def student95_seed5_triplet():
     # student-95avg, seed 5 (first seed not covered by ARC's seeds-0-4 batch),
-    # across all 3 categories — 3 jobs, parallel
-    run_distill.spawn(5, baseline_only=True, alpha_override=None, config_name="student-95avg")
-    run_distill.spawn(5, baseline_only=False, alpha_override=0.5, config_name="student-95avg")
-    run_distill.spawn(26, baseline_only=False, alpha_override=0.6, config_name="student-95avg-scheduled")
+    # across all 3 categories — 3 jobs, parallel, on L40S (faster than the
+    # default L4; overridden per-call so other run_distill callers are unaffected)
+    fast = run_distill.with_options(gpu="L40S")
+    fast.spawn(5, baseline_only=True, alpha_override=None, config_name="student-95avg")
+    fast.spawn(5, baseline_only=False, alpha_override=0.5, config_name="student-95avg")
+    fast.spawn(26, baseline_only=False, alpha_override=0.6, config_name="student-95avg-scheduled")
 
 
 @app.local_entrypoint()
