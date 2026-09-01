@@ -359,6 +359,15 @@ def batch_80_90_triplets_and_20avg_extra():
 
 
 @app.local_entrypoint()
+def student85_seed5_triplet():
+    # student-85avg, seed 5 — completes the seed-5-across-all-levels triplet
+    # set (80/85/90/95), which previously had every level except this one — 3 jobs
+    run_distill.spawn(5, baseline_only=True, alpha_override=None, config_name="student-85avg")
+    run_distill.spawn(5, baseline_only=False, alpha_override=0.5, config_name="student-85avg")
+    run_distill.spawn(26, baseline_only=False, alpha_override=0.6, config_name="student-85avg-scheduled")
+
+
+@app.local_entrypoint()
 def timing_test_wandb():
     # same probe, but also logs the result + elapsed time to wandb
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
