@@ -16,7 +16,9 @@ conda activate libribrain
 cd /data/engs-pnpl-hl/libribrain-experiments
 
 MANIFEST=${MANIFEST:?must set MANIFEST}
-LINE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$MANIFEST")
+OFFSET=${OFFSET:-0}
+LINE_NUM=$((SLURM_ARRAY_TASK_ID + OFFSET))
+LINE=$(sed -n "${LINE_NUM}p" "$MANIFEST")
 CONFIG_NAME=$(awk '{print $1}' <<< "$LINE")
 RUN_INDEX=$(awk '{print $2}' <<< "$LINE")
 TEST_LEVEL=$(awk '{print $3}' <<< "$LINE")
