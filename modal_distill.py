@@ -345,6 +345,20 @@ def student95_seed5_triplet():
 
 
 @app.local_entrypoint()
+def batch_80_90_triplets_and_20avg_extra():
+    # student-80avg + student-90avg triplets (baseline/KD/scheduled-FiLM) at
+    # seed 5, extending the seed-5-across-all-levels comparison — 6 jobs.
+    # Plus one more seed (4) for baseline-20avg's train-X-test-50 sweep: its
+    # current n=3 mean (0.4691) narrowly beats 25avg (0.4635), which would
+    # flip the "peak at 25" story to "peak at 20" — worth confirming. 7 jobs total.
+    for level in [80, 90]:
+        run_distill.spawn(5, baseline_only=True, alpha_override=None, config_name=f"student-{level}avg")
+        run_distill.spawn(5, baseline_only=False, alpha_override=0.5, config_name=f"student-{level}avg")
+        run_distill.spawn(26, baseline_only=False, alpha_override=0.6, config_name=f"student-{level}avg-scheduled")
+    run_baseline_traintest.spawn(4, "baseline-20avg")
+
+
+@app.local_entrypoint()
 def timing_test_wandb():
     # same probe, but also logs the result + elapsed time to wandb
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
