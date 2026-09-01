@@ -6,13 +6,20 @@
 # Usage: bash submit_new_levels.sh <first_seed> <last_seed>
 #   bash submit_new_levels.sh 0 4   # first batch: 4 levels x 3 categories x 5 seeds = 60 jobs
 #   bash submit_new_levels.sh 5 9   # remaining batch: another 60 jobs (120 total)
+#   bash submit_new_levels.sh 9 6   # descending order also works (9,8,7,6)
 set -e
 FIRST=${1:?usage: submit_new_levels.sh <first_seed> <last_seed>}
 LAST=${2:?usage: submit_new_levels.sh <first_seed> <last_seed>}
 LEVELS=(80 85 90 95)
 
+if [ "$FIRST" -le "$LAST" ]; then
+  SEEDS=$(seq "$FIRST" "$LAST")
+else
+  SEEDS=$(seq "$FIRST" -1 "$LAST")
+fi
+
 for X in "${LEVELS[@]}"; do
-  for SEED in $(seq "$FIRST" "$LAST"); do
+  for SEED in $SEEDS; do
     # 1. Baseline CE, step-matched (bypasses the KD loss; alpha is unused but
     #    must be set for the script's --alpha-override argument)
     CONFIG_NAME=student-${X}avg RUN_NAME_PREFIX=student-${X}avg-abo \
