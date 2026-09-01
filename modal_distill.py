@@ -368,6 +368,17 @@ def student85_seed5_triplet():
 
 
 @app.local_entrypoint()
+def scheduled_seed6_85_90_95():
+    # scheduled-KD-FiLM only, seed 6, at 85/90/95avg — 3 jobs. ARC's seeds-0-4
+    # batch appears to be processing levels in submission order (80avg first),
+    # so 85/90/95 are likely still queued; this builds seed depth ahead of
+    # that on the category most worth deepening (scheduled-a05 was the more
+    # robust of the two significant 75avg KD hits, not outlier-driven).
+    for level in [85, 90, 95]:
+        run_distill.spawn(31, baseline_only=False, alpha_override=0.6, config_name=f"student-{level}avg-scheduled")
+
+
+@app.local_entrypoint()
 def timing_test_wandb():
     # same probe, but also logs the result + elapsed time to wandb
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
