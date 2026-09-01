@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=libribrain-matrix
 #SBATCH --partition=short
-#SBATCH --time=00:15:00
+#SBATCH --time=00:06:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
