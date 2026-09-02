@@ -409,3 +409,12 @@ def seed7_95_triplet_90_baseline_kd():
     run_distill.spawn(36, baseline_only=False, alpha_override=0.6, config_name="student-95avg-scheduled")
     run_distill.spawn(7, baseline_only=True, alpha_override=None, config_name="student-90avg")
     run_distill.spawn(7, baseline_only=False, alpha_override=0.5, config_name="student-90avg")
+
+
+@app.local_entrypoint()
+def seed7_85_kd_scheduled():
+    # 85avg has zero scheduled-KD-FiLM completions so far (seed 5's triplet
+    # may be stuck/failed there) and only n=1 for baseline/KD -- 2 jobs to
+    # keep it in step with the seed-7 push already running for 90/95avg.
+    run_distill.spawn(7, baseline_only=False, alpha_override=0.5, config_name="student-85avg")
+    run_distill.spawn(36, baseline_only=False, alpha_override=0.6, config_name="student-85avg-scheduled")
