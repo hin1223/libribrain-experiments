@@ -31,13 +31,16 @@ for X in "${LEVELS[@]}"; do
       ALPHA=0.5 ALPHA_TAG=05 RUN_INDEX=${SEED} \
       sbatch run_arc.sh
 
-    # 3. Scheduled KD + FiLM, alpha=0.6 (config default); the search-space's
-    #    temperature axis has 5 values ([1,2,3,4,6], fastest-varying), so
-    #    seed*5+1 pins temperature=2.0 for every seed, matching how every
-    #    other level's -scheduled sweep was run.
+    # 3. Scheduled KD + FiLM, alpha=0.5 (NOT the config file's own 0.6 default --
+    #    every existing level's scheduled category (10/25/50/75avg) was
+    #    actually submitted with an explicit alpha-override of 0.5, which
+    #    takes precedence over the file's default; matching that here keeps
+    #    the KD weight constant across categories/levels for a clean
+    #    like-for-like comparison. The search-space's temperature axis has 5
+    #    values ([1,2,3,4,6], fastest-varying), so seed*5+1 pins temperature=2.0.
     SCHED_RUN_INDEX=$((SEED * 5 + 1))
     CONFIG_NAME=student-${X}avg-scheduled RUN_NAME_PREFIX=student-${X}avg-scheduled \
-      ALPHA=0.6 ALPHA_TAG=06 RUN_INDEX=${SCHED_RUN_INDEX} \
+      ALPHA=0.5 ALPHA_TAG=05 RUN_INDEX=${SCHED_RUN_INDEX} \
       sbatch run_arc.sh
   done
 done
