@@ -396,3 +396,16 @@ def thin_levels_extra_seeds():
     run_baseline_traintest.spawn(4, "baseline-30avg")
     run_baseline_traintest.spawn(4, "baseline-85avg")
     run_baseline_traintest.spawn(4, "baseline-200avg")
+
+
+@app.local_entrypoint()
+def seed7_95_triplet_90_baseline_kd():
+    # 95avg gets a second full same-seed triplet (seed 7) -- still the most
+    # theoretically decisive level (closest to the teacher's 100avg) and
+    # currently only has n=1 per category. 90avg gets baseline+KD only
+    # (its scheduled category already got the seed-6 priority boost). 5 jobs.
+    run_distill.spawn(7, baseline_only=True, alpha_override=None, config_name="student-95avg")
+    run_distill.spawn(7, baseline_only=False, alpha_override=0.5, config_name="student-95avg")
+    run_distill.spawn(36, baseline_only=False, alpha_override=0.6, config_name="student-95avg-scheduled")
+    run_distill.spawn(7, baseline_only=True, alpha_override=None, config_name="student-90avg")
+    run_distill.spawn(7, baseline_only=False, alpha_override=0.5, config_name="student-90avg")
