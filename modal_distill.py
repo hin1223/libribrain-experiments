@@ -431,3 +431,12 @@ def scheduled_a05_rebuild():
         run_distill.spawn(run_index, baseline_only=False, alpha_override=0.5, config_name="student-80avg-scheduled")
     for level in [85, 90, 95]:
         run_distill.spawn(26, baseline_only=False, alpha_override=0.5, config_name=f"student-{level}avg-scheduled")
+
+
+@app.local_entrypoint()
+def scheduled_a05_extra_seed6():
+    # One more seed (6) each for 80/85/90avg scheduled-KD-FiLM, alpha=0.5 --
+    # 3 jobs, spread rather than concentrated since 85/90avg (n=1) benefit
+    # more from a 2nd seed than 80avg (already n=4) would from a 5th.
+    for level in [80, 85, 90]:
+        run_distill.spawn(31, baseline_only=False, alpha_override=0.5, config_name=f"student-{level}avg-scheduled")
