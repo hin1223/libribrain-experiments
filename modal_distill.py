@@ -382,3 +382,17 @@ def scheduled_seed6_85_90_95():
 def timing_test_wandb():
     # same probe, but also logs the result + elapsed time to wandb
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=True)
+
+
+@app.local_entrypoint()
+def thin_levels_extra_seeds():
+    # reinforce the thinnest rows in the full transfer matrix (20/30/85/200avg,
+    # all currently n=3-4) — 5 jobs. 20avg gets 2 (it's the thinnest, n=3
+    # after excluding the ambiguous hpo-2 checkpoint); 30/85/200avg get 1 each.
+    # Trains + evaluates at test=50 only for now; sync new checkpoints to ARC
+    # afterward and rerun the matrix sweep there to fill in all 16 test levels.
+    run_baseline_traintest.spawn(4, "baseline-20avg")
+    run_baseline_traintest.spawn(5, "baseline-20avg")
+    run_baseline_traintest.spawn(4, "baseline-30avg")
+    run_baseline_traintest.spawn(4, "baseline-85avg")
+    run_baseline_traintest.spawn(4, "baseline-200avg")
