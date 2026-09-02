@@ -334,6 +334,55 @@ def timing_test():
     run_eval_timing.remote("baseline-85avg", 0, 50, log_wandb=False)
 
 
+@app.function(
+    image=image,
+    gpu="L4",
+    timeout=600,
+    volumes={"/vol": volume},
+    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("hf-secret")],
+)
+def test_load_scheduled_checkpoint():
+    """Sanity check: does evaluate_averaging.py's --module distillation
+    correctly load a ScheduledDistillationModule checkpoint (a subclass of
+    DistillationModule, which is all the --module flag directly supports)?
+    Tests against the single checkpoint uploaded to /vol/test_scheduled.ckpt."""
+    import sys, os, json, tempfile, yaml
+    sys.path.insert(0, "/app")
+    os.chdir("/app")
+
+    with open("configs/phoneme/student-50avg-scheduled/base-config-arc.yaml") as f:
+        config = yaml.safe_load(f)
+    for split in ["train", "val", "test"]:
+        if split in config["data"]["datasets"]:
+            for ds in config["data"]["datasets"][split]:
+                for ds_cfg in ds.values():
+                    ds_cfg["data_path"] = DATA_PATH
+                    ds_cfg["preload_files"] = True
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config, f)
+        tmp_config_path = f.name
+
+    from libribrain_experiments.evaluate_averaging import main as eval_main
+    eval_args = Namespace(
+        config=tmp_config_path,
+        checkpoint="/vol/test_scheduled.ckpt",
+        module="distillation",
+        split="test",
+        levels="50",
+        n_pool=200,
+        batch_size=8,
+        output="/vol/test_scheduled_eval_result.json",
+    )
+    eval_main(eval_args)
+    with open("/vol/test_scheduled_eval_result.json") as f:
+        print("RESULT:", json.load(f))
+
+
+@app.local_entrypoint()
+def test_scheduled_load():
+    test_load_scheduled_checkpoint.remote()
+
+
 @app.local_entrypoint()
 def student95_seed5_triplet():
     # student-95avg, seed 5 (first seed not covered by ARC's seeds-0-4 batch),
