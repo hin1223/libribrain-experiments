@@ -418,3 +418,16 @@ def seed7_85_kd_scheduled():
     # keep it in step with the seed-7 push already running for 90/95avg.
     run_distill.spawn(7, baseline_only=False, alpha_override=0.5, config_name="student-85avg")
     run_distill.spawn(36, baseline_only=False, alpha_override=0.6, config_name="student-85avg-scheduled")
+
+
+@app.local_entrypoint()
+def scheduled_a05_rebuild():
+    # Rebuilds scheduled-KD-FiLM coverage at the correct alpha=0.5 (the a06
+    # runs this superseded are being stopped) -- 7 jobs, prioritizing 95avg
+    # (closest to the teacher, most decisive) with 3 seeds, 90/85avg with 2
+    # each. ARC's fresh seeds-0-9 batch covers the rest more slowly.
+    for run_index in [26, 31, 36]:  # seeds 5, 6, 7
+        run_distill.spawn(run_index, baseline_only=False, alpha_override=0.5, config_name="student-95avg-scheduled")
+    for run_index in [26, 31]:  # seeds 5, 6
+        run_distill.spawn(run_index, baseline_only=False, alpha_override=0.5, config_name="student-90avg-scheduled")
+        run_distill.spawn(run_index, baseline_only=False, alpha_override=0.5, config_name="student-85avg-scheduled")
